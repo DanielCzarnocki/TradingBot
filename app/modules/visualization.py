@@ -36,7 +36,8 @@ async def get_dashboard():
             padding: 0 20px;
             gap: 15px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-            z-index: 100;
+            z-index: 1000; /* Higher than panels */
+            position: relative;
         }
         
         .tool-btn {
@@ -179,52 +180,100 @@ async def get_dashboard():
         }
         .form-control:focus { outline: none; border-color: #58a6ff; }
 
-        /* Analytics Panel Styles */
+        /* Position HUD Panel */
+        #pos-panel {
+            position: absolute;
+            top: 10px; left: 10px;
+            z-index: 100;
+            display: flex; flex-direction: column; gap: 8px;
+            pointer-events: none; /* Don't block chart interaction */
+        }
+        .pos-card {
+            background: rgba(13, 17, 23, 0.85);
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 10px 12px;
+            min-width: 180px;
+            backdrop-filter: blur(8px);
+            display: none; /* Shown via JS only when active */
+        }
+        .pos-card.active { display: block; }
+        .pos-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 6px; border-bottom: 1px solid #30363d; padding-bottom: 4px;
+        }
+        .pos-title { font-size: 11px; font-weight: bold; letter-spacing: 0.5px; }
+        .pos-long .pos-title { color: #58a6ff; }
+        .pos-short .pos-title { color: #e3b341; }
+        .pos-row { display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 2px; color: #8b949e; }
+        .pos-val { font-weight: bold; color: #c9d1d9; }
+        .pos-pnl { font-size: 12px; margin-top: 4px; font-weight: bold; }
+        .pnl-plus { color: #3fb950; }
+        .pnl-minus { color: #f85149; }
+
+        /* Analytics Panel Styles - Tall & Narrow Histogram */
         #analytics-panel {
             position: absolute;
             top: 50px; left: 10px; right: 10px;
             height: 180px;
-            background: rgba(13, 17, 23, 0.95);
+            background: rgba(13, 17, 23, 0.98);
             border: 1px solid #30363d;
-            border-radius: 12px;
+            border-radius: 8px;
             z-index: 1000;
             display: none;
             flex-direction: column;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 25px rgba(0,0,0,0.9);
+            backdrop-filter: blur(15px);
             animation: panelSlideDown 0.3s ease-out;
         }
         @keyframes panelSlideDown {
-            from { opacity: 0; transform: translateY(-20px); }
+            from { opacity: 0; transform: translateY(-10px); }
             to { opacity: 1; transform: translateY(0); }
         }
         .analytics-header {
-            padding: 10px 20px;
+            padding: 8px 15px;
             border-bottom: 1px solid #30363d;
             display: flex; justify-content: space-between; align-items: center;
-            font-size: 13px; font-weight: bold; color: #58a6ff;
+            font-size: 11px; font-weight: bold; color: #58a6ff;
+        }
+        .analytics-main {
+            flex-grow: 1; display: flex; overflow: hidden;
         }
         .analytics-body {
-            flex-grow: 1; padding: 15px 25px;
-            display: flex; align-items: flex-end; gap: 15px;
+            flex-grow: 3; padding: 10px 20px;
+            display: flex; align-items: flex-end; gap: 6px;
             overflow-x: auto;
+            border-right: 1px solid #30363d;
         }
+        .analytics-stats-sidebar {
+            flex-grow: 1; min-width: 150px; padding: 15px;
+            display: flex; flex-direction: column; gap: 10px;
+            background: rgba(110, 118, 129, 0.05);
+        }
+        .stat-item { display: flex; flex-direction: column; gap: 2px; }
+        .stat-label { font-size: 10px; color: #8b949e; text-transform: uppercase; }
+        .stat-value { font-size: 14px; font-weight: bold; color: #c9d1d9; }
+        .stat-value.profit { color: #3fb950; }
+        .stat-value.loss { color: #f85149; }
         .bar-container {
-            flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px;
-            min-width: 60px; max-width: 100px;
+            display: flex; flex-direction: column; align-items: center; gap: 4px;
+            min-width: 18px; /* Narrower as requested */
+            height: 100%; justify-content: flex-end;
         }
         .bar {
-            width: 100%; border-radius: 4px 4px 0 0;
-            background: linear-gradient(to top, #238636, #2ea043);
-            transition: height 0.5s ease-in-out;
+            width: 14px; border-radius: 2px 2px 0 0;
+            background: #1f6feb; border: 1px solid #58a6ff;
+            background: linear-gradient(to top, #0969da, #1f6feb);
+            transition: height 0.4s ease-out;
             position: relative;
-            cursor: pointer;
+            opacity: 0.9;
         }
-        .bar:hover { filter: brightness(1.2); }
-        .bar-label { font-size: 10px; color: #8b949e; text-align: center; }
+        .bar:hover { opacity: 1; filter: brightness(1.3); }
+        .bar-label { font-size: 8px; color: #8b949e; white-space: nowrap; transform: rotate(-45deg); margin-top: 10px; }
+        .bar-prob { font-size: 8px; color: #58a6ff; font-weight: bold; margin-bottom: 2px; }
         .bar-value { 
-            position: absolute; top: -18px; width: 100%; text-align: center;
-            font-size: 11px; font-weight: bold; color: #c9d1d9;
+            position: absolute; top: -12px; width: 100%; text-align: center;
+            font-size: 8px; font-weight: bold; color: #c9d1d9;
         }
         .analytics-close { cursor: pointer; color: #8b949e; font-size: 18px; }
         .analytics-close:hover { color: #f85149; }
@@ -238,14 +287,12 @@ async def get_dashboard():
 <body>
     <div id="toolbar">
         <div style="font-weight: bold; font-size: 16px; margin-right: 10px; color: #58a6ff;">LTC/USDT</div>
-        <button class="tool-btn">1m</button>
-        <button class="tool-btn">Indicators</button>
-        
         <div class="dropdown">
-            <button class="tool-btn" id="strategy-btn">Strategia ▼</button>
+            <button class="tool-btn dropdown-toggle" id="strategy-btn">Strategia ▼</button>
             <div id="strategy-dropdown" class="dropdown-content">
                 <a id="btn-open-settings">⚙️ Ustawienia strategii</a>
-                <a id="btn-open-analytics">📊 Analityka</a>
+                <a id="btn-open-pos-settings">📊 Ustawienia pozycji</a>
+                <a id="btn-open-analytics">📈 Analityka</a>
             </div>
         </div>
 
@@ -256,14 +303,48 @@ async def get_dashboard():
     <div id="chart-container">
         <div id="loading-overlay">Loading historical data...</div>
         
+        <!-- Position Panel HUD -->
+        <div id="pos-panel">
+            <div id="long-pos-card" class="pos-card pos-long">
+                <div class="pos-header"><span class="pos-title">LONG POSITION</span></div>
+                <div class="pos-row"><span>Uśrednienia:</span> <span class="pos-val" id="l-hud-count">0</span></div>
+                <div class="pos-row"><span>Kontrakty:</span> <span class="pos-val" id="l-hud-qty">0.00</span></div>
+                <div class="pos-pnl" id="l-hud-pnl">$0.00 (0.00%)</div>
+            </div>
+            <div id="short-pos-card" class="pos-card pos-short">
+                <div class="pos-header"><span class="pos-title">SHORT POSITION</span></div>
+                <div class="pos-row"><span>Uśrednienia:</span> <span class="pos-val" id="s-hud-count">0</span></div>
+                <div class="pos-row"><span>Kontrakty:</span> <span class="pos-val" id="s-hud-qty">0.00</span></div>
+                <div class="pos-pnl" id="s-hud-pnl">$0.00 (0.00%)</div>
+            </div>
+        </div>
+        
         <!-- Analytics Panel Container -->
         <div id="analytics-panel">
             <div class="analytics-header">
-                <span>ANALIZA STATYSTYCZNA UŚREDNIEŃ (DCA)</span>
+                <div>ANALIZA STATYSTYCZNA UŚREDNIEŃ (DCA) <span id="analytics-total-count" style="margin-left: 20px; color: #8b949e; opacity: 0.7;"></span></div>
                 <span class="analytics-close" id="close-analytics-btn">&times;</span>
             </div>
-            <div class="analytics-body" id="analytics-bars-container">
-                <!-- Bars will be generated here -->
+            <div class="analytics-main">
+                <div class="analytics-body" id="analytics-bars-container"></div>
+                <div class="analytics-stats-sidebar">
+                    <div class="stat-item">
+                        <span class="stat-label">Całkowity PNL</span>
+                        <span class="stat-value" id="stats-total-pnl">0.00</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Średni PNL</span>
+                        <span class="stat-value" id="stats-avg-pnl">0.00</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Najwyższy PNL</span>
+                        <span class="stat-value profit" id="stats-max-pnl">0.00</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Najniższy PNL</span>
+                        <span class="stat-value loss" id="stats-min-pnl">0.00</span>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -304,6 +385,33 @@ async def get_dashboard():
         </div>
     </div>
 
+    <!-- Position Settings Modal -->
+    <div id="pos-settings-modal" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-header">
+                Ustawienia Pozycji
+                <div class="modal-close" id="close-pos-modal-btn">&times;</div>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="initial-qty">Ilość kontraktów początkowych</label>
+                    <input type="number" id="initial-qty" class="form-control" value="1.0" step="0.1" min="0.001">
+                </div>
+                <div class="form-group">
+                    <label for="contract-size">Wielkość kontraktu (w LTC)</label>
+                    <input type="number" id="contract-size" class="form-control" value="0.01" step="0.0001" min="0.00001">
+                    <div style="font-size: 10px; color: #8b949e; margin-top: 5px;">
+                        * Dla LTC często 1 kontrakt = 0.01 LTC
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="tool-btn" id="cancel-pos-btn">Anuluj</button>
+                <button class="tool-btn btn-primary" id="save-pos-btn">Zapisz</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const chartContainer = document.getElementById('chart-container');
         const loadingOverlay = document.getElementById('loading-overlay');
@@ -329,15 +437,75 @@ async def get_dashboard():
         const cancelSettingsBtn = document.getElementById('cancel-settings-btn');
         const saveSettingsBtn = document.getElementById('save-settings-btn');
         
+        const btnOpenPosSettings = document.getElementById('btn-open-pos-settings');
+        const posSettingsModal = document.getElementById('pos-settings-modal');
+        const closePosModalBtn = document.getElementById('close-pos-modal-btn');
+        const cancelPosBtn = document.getElementById('cancel-pos-btn');
+        const savePosBtn = document.getElementById('save-pos-btn');
+        const initialQtyInput = document.getElementById('initial-qty');
+        const contractSizeInput = document.getElementById('contract-size');
+        
         const analyticsPanel = document.getElementById('analytics-panel');
         const btnOpenAnalytics = document.getElementById('btn-open-analytics');
         const closeAnalyticsBtn = document.getElementById('close-analytics-btn');
         const barsContainer = document.getElementById('analytics-bars-container');
+        const analyticsTotalCount = document.getElementById('analytics-total-count');
 
         // Dropdown Logic
         strategyBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             strategyDropdown.classList.toggle('show');
+        });
+
+        btnOpenPosSettings.addEventListener('click', () => {
+            posSettingsModal.style.display = 'flex';
+            strategyDropdown.classList.remove('show');
+        });
+        closePosModalBtn.addEventListener('click', () => posSettingsModal.style.display = 'none');
+        cancelPosBtn.addEventListener('click', () => posSettingsModal.style.display = 'none');
+
+        initialQtyInput.addEventListener('input', () => {}); // No immediate calc needed
+        contractSizeInput.addEventListener('input', () => {});
+
+        async function saveSettings() {
+            const period = trendPeriodInput.value;
+            const factor = weightFactorInput.value;
+            const multiplier = multiplierInput.value;
+            const minProfit = minProfitInput.value;
+            const iQty = initialQtyInput.value;
+            const cSize = contractSizeInput.value;
+            
+            try {
+                await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        settings: {
+                            "trend_period": period,
+                            "weight_factor": factor,
+                            "multiplier": multiplier,
+                            "min_profit": minProfit,
+                            "initial_qty": iQty,
+                            "contract_size": cSize
+                        }
+                    })
+                });
+                calculateTrend();
+                fetchRenko();
+                simulateStrategy();
+            } catch (err) {
+                console.error("Błąd zapisu ustawień", err);
+            }
+        }
+
+        saveSettingsBtn.addEventListener('click', async () => {
+            await saveSettings();
+            settingsModal.style.display = 'none';
+        });
+
+        savePosBtn.addEventListener('click', async () => {
+            await saveSettings();
+            posSettingsModal.style.display = 'none';
         });
 
         document.addEventListener('click', (e) => {
@@ -364,8 +532,11 @@ async def get_dashboard():
                 if (data["weight_factor"]) weightFactorInput.value = data["weight_factor"];
                 if (data["multiplier"]) multiplierInput.value = data["multiplier"];
                 if (data["min_profit"]) minProfitInput.value = data["min_profit"];
+                if (data["initial_qty"]) initialQtyInput.value = data["initial_qty"];
+                if (data["contract_size"]) contractSizeInput.value = data["contract_size"];
                 
                 calculateTrend();
+                simulateStrategy();
             } catch (err) {
                 console.error("Nie udało się pobrać ustawień:", err);
             }
@@ -416,17 +587,12 @@ async def get_dashboard():
         multiplierInput.addEventListener('input', calculateTrend);
         minProfitInput.addEventListener('input', calculateTrend);
 
-        // Analytics Logic
+        // Analytics Logic - Discrete Probability Histogram
         function updateAnalytics(signals) {
             if (!signals || signals.length === 0) return;
             
-            // Group signals into positions and count averages
-            const avgCounts = {}; // { count: frequency }
-            let tempAverages = 0;
-            let inPosition = false;
-
-            // Simple logic: count average_X signals between open_X and close_X
-            // Since hedge mode exists, we track long and short separately
+            const avgCounts = {};
+            const pnlList = [];
             let longAvgs = 0, shortAvgs = 0;
             let longActive = false, shortActive = false;
 
@@ -435,6 +601,7 @@ async def get_dashboard():
                 else if (s.signal === 'average_long') { longAvgs++; }
                 else if (s.signal === 'close_long') { 
                     avgCounts[longAvgs] = (avgCounts[longAvgs] || 0) + 1;
+                    if (s.pnl !== undefined) pnlList.push(s.pnl);
                     longActive = false;
                 }
                 
@@ -442,23 +609,59 @@ async def get_dashboard():
                 else if (s.signal === 'average_short') { shortAvgs++; }
                 else if (s.signal === 'close_short') {
                     avgCounts[shortAvgs] = (avgCounts[shortAvgs] || 0) + 1;
+                    if (s.pnl !== undefined) pnlList.push(s.pnl);
                     shortActive = false;
                 }
             });
 
-            // Render Bars
-            barsContainer.innerHTML = '';
-            const maxCounts = Math.max(...Object.keys(avgCounts).map(Number), 5);
-            const totalPositions = Object.values(avgCounts).reduce((a, b) => a + b, 0);
-            const maxFreq = Math.max(...Object.values(avgCounts), 1);
+            // Update PNL Stats
+            if (pnlList.length > 0) {
+                const totalPnl = pnlList.reduce((a, b) => a + b, 0);
+                const maxPnl = Math.max(...pnlList);
+                const minPnl = Math.min(...pnlList);
+                const avgPnl = totalPnl / pnlList.length;
 
+                const setStat = (id, val, colorize = true) => {
+                    const el = document.getElementById(id);
+                    el.innerText = val.toFixed(2);
+                    if (colorize) {
+                        el.className = 'stat-value' + (val >= 0 ? ' profit' : ' loss');
+                    }
+                };
+
+                setStat('stats-total-pnl', totalPnl);
+                setStat('stats-avg-pnl', avgPnl);
+                setStat('stats-max-pnl', maxPnl);
+                setStat('stats-min-pnl', minPnl);
+            }
+
+            barsContainer.innerHTML = '';
+            const allKeys = Object.keys(avgCounts).map(Number);
+            const maxCounts = allKeys.length > 0 ? Math.max(...allKeys, 5) : 5;
+            const totalPositions = Object.values(avgCounts).reduce((a, b) => a + b, 0);
+            
+            if (analyticsTotalCount) {
+                analyticsTotalCount.innerText = `| ŁĄCZNIE: ${totalPositions}`;
+            }
+
+            // Calculate conditional completion for each step
             for (let i = 0; i <= maxCounts; i++) {
                 const freq = avgCounts[i] || 0;
-                const heightPct = (freq / maxFreq) * 100;
+                
+                // Calculate how many positions reached this level (i and above)
+                let totalReachedLevel = 0;
+                for (let k = i; k <= maxCounts; k++) {
+                    totalReachedLevel += (avgCounts[k] || 0);
+                }
+
+                // Probability: Out of those who reached i, how many closed at i?
+                const prob = totalReachedLevel > 0 ? (freq / totalReachedLevel * 100) : 0;
+                const heightPct = prob; 
                 
                 const barHtml = `
                     <div class="bar-container">
-                        <div class="bar" style="height: ${Math.max(heightPct, 5)}%">
+                        <div class="bar-prob">${prob.toFixed(1)}%</div>
+                        <div class="bar" style="height: ${Math.max(heightPct, 2)}%;">
                             <div class="bar-value">${freq}</div>
                         </div>
                         <div class="bar-label">${i} uśr.</div>
@@ -475,17 +678,47 @@ async def get_dashboard():
             analyticsPanel.style.display = 'none';
         });
 
+        function updatePositionHUD(data) {
+            const lCard = document.getElementById('long-pos-card');
+            const sCard = document.getElementById('short-pos-card');
+
+            if (data.current_long_active) {
+                lCard.classList.add('active');
+                document.getElementById('l-hud-count').innerText = data.long_count;
+                document.getElementById('l-hud-qty').innerText = data.long_qty;
+                const pnlEl = document.getElementById('l-hud-pnl');
+                pnlEl.innerText = `$${data.long_pnl} (${data.long_pnl_pct}%)`;
+                pnlEl.className = 'pos-pnl ' + (data.long_pnl >= 0 ? 'pnl-plus' : 'pnl-minus');
+            } else {
+                lCard.classList.remove('active');
+            }
+
+            if (data.current_short_active) {
+                sCard.classList.add('active');
+                document.getElementById('s-hud-count').innerText = data.short_count;
+                document.getElementById('s-hud-qty').innerText = data.short_qty;
+                const pnlEl = document.getElementById('s-hud-pnl');
+                pnlEl.innerText = `$${data.short_pnl} (${data.short_pnl_pct}%)`;
+                pnlEl.className = 'pos-pnl ' + (data.short_pnl >= 0 ? 'pnl-plus' : 'pnl-minus');
+            } else {
+                sCard.classList.remove('active');
+            }
+        }
+
         async function simulateStrategy() {
             const period = parseInt(trendPeriodInput.value) || 100;
             const factor = parseFloat(weightFactorInput.value) || 0.87;
             const multiplier = parseFloat(multiplierInput.value) || 1.0;
             const minProfit = parseFloat(minProfitInput.value) || 0.2;
+            const iQty = parseFloat(initialQtyInput.value) || 1.0;
+            const cSize = parseFloat(contractSizeInput.value) || 0.01;
 
             try {
-                const res = await fetch(`/api/strategy/simulate?period=${period}&weight_factor=${factor}&multiplier=${multiplier}&min_profit_pct=${minProfit}`);
+                const res = await fetch(`/api/strategy/simulate?period=${period}&weight_factor=${factor}&multiplier=${multiplier}&min_profit_pct=${minProfit}&initial_qty=${iQty}&contract_size=${cSize}`);
                 const data = await res.json();
                 
                 updateAnalytics(data.signals);
+                updatePositionHUD(data);
 
                 // Handle Historical and Active Lines (Segmented)
                 // hist series are pre-initialized in initChart
@@ -568,32 +801,7 @@ async def get_dashboard():
         cancelSettingsBtn.addEventListener('click', closeModal);
         
         saveSettingsBtn.addEventListener('click', async () => {
-            const period = trendPeriodInput.value;
-            const factor = weightFactorInput.value;
-            const multiplier = multiplierInput.value;
-            const minProfit = minProfitInput.value;
-            
-            try {
-                await fetch('/api/settings', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        settings: {
-                            "trend_period": period,
-                            "weight_factor": factor,
-                            "multiplier": multiplier,
-                            "min_profit": minProfit
-                        }
-                    })
-                });
-                calculateTrend();
-                fetchRenko();
-                simulateStrategy();
-            } catch (err) {
-                console.error("Błąd zapisu ustawień", err);
-            }
-            
-            closeModal();
+            await saveSettings();
         });
 
         function initChart() {

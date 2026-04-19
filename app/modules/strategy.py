@@ -71,13 +71,16 @@ def simulate_strategy(
     weight_factor: float = Query(0.87, ge=0.01, le=1.0),
     multiplier: float = Query(1.0, ge=0.001),
     min_profit_pct: float = Query(0.2, ge=0.01),
+    initial_qty: float = Query(1.0, ge=0.001),
+    contract_size: float = Query(0.01, ge=0.00001), # New parameter
     db: Session = Depends(get_db)
 ):
     candles = db.query(Candle).order_by(Candle.timestamp.asc()).all()
     if not candles: return {"signals": []}
     window, S, w_p = [], 0.0, weight_factor ** period
     curr_high, curr_low, direction = None, None, 0
-    INITIAL_QTY = 1.0
+    INITIAL_QTY = initial_qty
+    C_SIZE = contract_size
     
     long_active = False
     long_entries, long_min_price, long_count, long_flag, long_target = [], None, 0, False, None
@@ -111,7 +114,10 @@ def simulate_strategy(
                 # --- LONG SIDE INDEPENDENT ---
                 if long_active:
                     if check_close_long(cd, c.close, long_target, long_active):
-                        signals.append({"time": t, "signal": "close_long", "price": round(c.close, 4)})
+                        w_a = sum(p * q for p, q in long_entries) / sum(q for _, q in long_entries)
+                        t_q = sum(q for _, q in long_entries)
+                        pnl = (c.close - w_a) * t_q * C_SIZE
+                        signals.append({"time": t, "signal": "close_long", "price": round(c.close, 4), "pnl": round(pnl, 4)})
                         long_active, long_entries, long_target, long_min_price, long_count, long_flag = False, [], None, None, 0, False
                     elif check_average_long(pd, cd, long_flag, long_count, long_active):
                         long_entries.append((c.close, INITIAL_QTY * long_count))
@@ -127,7 +133,10 @@ def simulate_strategy(
                 # --- SHORT SIDE INDEPENDENT ---
                 if short_active:
                     if check_close_short(cd, c.close, short_target, short_active):
-                        signals.append({"time": t, "signal": "close_short", "price": round(c.close, 4)})
+                        w_a = sum(p * q for p, q in short_entries) / sum(q for _, q in short_entries)
+                        t_q = sum(q for _, q in short_entries)
+                        pnl = (w_a - c.close) * t_q * C_SIZE
+                        signals.append({"time": t, "signal": "close_short", "price": round(c.close, 4), "pnl": round(pnl, 4)})
                         short_active, short_entries, short_target, short_max_price, short_count, short_flag = False, [], None, None, 0, False
                     elif check_average_short(pd, cd, short_flag, short_count, short_active):
                         short_entries.append((c.close, INITIAL_QTY * short_count))
@@ -163,6 +172,13 @@ def simulate_strategy(
     l_avg = (sum(p * q for p, q in long_entries) / t_q_l) if t_q_l else None
     s_avg = (sum(p * q for p, q in short_entries) / t_q_s) if t_q_s else None
     
+    # PNL for active positions
+    last_price = candles[-1].close if candles else 0
+    l_pnl = (last_price - l_avg) * t_q_l * C_SIZE if l_avg else 0
+    l_pnl_pct = (last_price / l_avg - 1) * 100 if l_avg else 0
+    s_pnl = (s_avg - last_price) * t_q_s * C_SIZE if s_avg else 0
+    s_pnl_pct = (s_avg / last_price - 1) * 100 if s_avg else 0
+
     return {
         "signals": signals, 
         "history_lines": history_lines,
@@ -171,5 +187,13 @@ def simulate_strategy(
         "long_avg_price": round(l_avg, 4) if l_avg else None,
         "short_avg_price": round(s_avg, 4) if s_avg else None,
         "long_target": round(long_target, 4) if long_target else None,
-        "short_target": round(short_target, 4) if short_target else None
+        "short_target": round(short_target, 4) if short_target else None,
+        "long_count": long_count,
+        "short_count": short_count,
+        "long_qty": round(t_q_l, 4),
+        "short_qty": round(t_q_s, 4),
+        "long_pnl": round(l_pnl, 4),
+        "long_pnl_pct": round(l_pnl_pct, 2),
+        "short_pnl": round(s_pnl, 4),
+        "short_pnl_pct": round(s_pnl_pct, 2)
     }
