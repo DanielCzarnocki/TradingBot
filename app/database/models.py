@@ -1,0 +1,13 @@
+from sqlalchemy import Column, Integer, Float, BigInteger
+from app.database.connection import Base
+
+class Candle(Base):
+    __tablename__ = "candles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(BigInteger, unique=True, index=True) # timestamp in milliseconds
+    open = Column(Float)
+    high = Column(Float)
+    low = Column(Float)
+    close = Column(Float)
+    volume = Column(Float)
