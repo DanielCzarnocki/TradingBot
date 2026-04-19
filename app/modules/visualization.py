@@ -252,6 +252,11 @@ async def get_dashboard():
         let lastTimestamp = null;
         let isLoading = false;
         let allDataLoaded = false;
+        
+        let histLongAvgSeries = null;
+        let histLongTargetSeries = null;
+        let histShortAvgSeries = null;
+        let histShortTargetSeries = null;
 
         // Modal Elements
         const strategyBtn = document.getElementById('strategy-btn');
@@ -328,15 +333,7 @@ async def get_dashboard():
                 const res = await fetch(`/api/strategy/renko?period=${period}&weight_factor=${factor}&multiplier=${multiplier}`);
                 const data = await res.json();
                 
-                if (!renkoSeries) {
-                    // Overlay style: semi-transparent solid bricks, removing wicks
-                    renkoSeries = mainChart.addCandlestickSeries({
-                        upColor: 'rgba(88, 166, 255, 0.4)', 
-                        downColor: 'rgba(248, 81, 73, 0.4)', 
-                        borderVisible: false,
-                        wickVisible: false
-                    });
-                }
+                if (!renkoSeries) return; // Should be initialized
                 
                 renkoSeries.applyOptions({ visible: true });
                 if (data.bricks && data.bricks.length > 0) {
@@ -361,20 +358,60 @@ async def get_dashboard():
             try {
                 const res = await fetch(`/api/strategy/simulate?period=${period}&weight_factor=${factor}&multiplier=${multiplier}&min_profit_pct=${minProfit}`);
                 const data = await res.json();
-                if (!data.signals || data.signals.length === 0) return;
+                
+                // Handle Historical and Active Lines (Segmented)
+                // hist series are pre-initialized in initChart
+
+                if (data.history_lines && data.history_lines.length > 0) {
+                    const lAvg = [], lTp = [], sAvg = [], sTp = [];
+                    data.history_lines.forEach(h => {
+                        const val = h.avg || 0;
+                        const tval = h.target || 0;
+                        if (h.type === 'long') { 
+                            lAvg.push({ time: h.time, value: val }); 
+                            lTp.push({ time: h.time, value: tval }); 
+                        } else { 
+                            sAvg.push({ time: h.time, value: val }); 
+                            sTp.push({ time: h.time, value: tval }); 
+                        }
+                    });
+                    histLongAvgSeries.setData(lAvg);
+                    histLongTargetSeries.setData(lTp);
+                    histShortAvgSeries.setData(sAvg);
+                    histShortTargetSeries.setData(sTp);
+                }
+
+                if (!data.signals || data.signals.length === 0) {
+                    candleSeries.setMarkers([]);
+                    return;
+                }
 
                 const markerConfig = {
-                    open_long:     { position: 'belowBar', color: '#26a69a', shape: 'arrowUp',   text: 'L+' },
-                    average_long:  { position: 'belowBar', color: '#58a6ff', shape: 'circle',    text: 'LA' },
-                    close_long:    { position: 'aboveBar', color: '#26a69a', shape: 'arrowDown', text: 'LX' },
-                    open_short:    { position: 'aboveBar', color: '#f85149', shape: 'arrowDown', text: 'S+' },
-                    average_short: { position: 'aboveBar', color: '#e3b341', shape: 'circle',    text: 'SA' },
-                    close_short:   { position: 'belowBar', color: '#f85149', shape: 'arrowUp',   text: 'SX' },
+                    open_long:     { position: 'belowBar', color: '#00ffcc', shape: 'arrowUp',   text: 'OPEN LONG' },
+                    average_long:  { position: 'belowBar', color: '#00ccff', shape: 'circle',    text: 'AVG LONG' },
+                    close_long:    { position: 'aboveBar', color: '#ff00ff', shape: 'arrowDown', text: 'CLOSE LONG' },
+                    open_short:    { position: 'aboveBar', color: '#ff3300', shape: 'arrowDown', text: 'OPEN SHORT' },
+                    average_short: { position: 'aboveBar', color: '#ffcc00', shape: 'circle',    text: 'AVG SHORT' },
+                    close_short:   { position: 'belowBar', color: '#ff00ff', shape: 'arrowUp',   text: 'CLOSE SHORT' },
                 };
 
                 const markers = data.signals
                     .filter(s => markerConfig[s.signal])
-                    .map(s => ({ time: s.time, ...markerConfig[s.signal] }))
+                    .map(s => {
+                        const m = markerConfig[s.signal];
+                        let label = m.text;
+                        if (s.signal.includes('average')) {
+                            label = `AVG (${s.counter})`;
+                        }
+                        return { 
+                            time: s.time, 
+                            position: m.position, 
+                            color: m.color, 
+                            shape: m.shape, 
+                            text: label,
+                            size: 2 // Some browser versions support this, others ignore
+                        };
+                    })
                     .sort((a, b) => a.time - b.time);
 
                 console.log(`Strategy: setting ${markers.length} markers`);
@@ -443,17 +480,39 @@ async def get_dashboard():
             };
 
             mainChart = LightweightCharts.createChart(chartContainer, chartOptions);
+            
+            // 1. Candlesticks (Base)
             candleSeries = mainChart.addCandlestickSeries({
                 upColor: '#26a69a', downColor: '#ef5350', borderVisible: false,
                 wickUpColor: '#26a69a', wickDownColor: '#ef5350',
             });
 
+            // 2. Performance Lines (Middle)
+            const lineOptions = (color, title, dashed = false) => ({
+                color: color,
+                lineWidth: 1,
+                lineStyle: dashed ? LightweightCharts.LineStyle.Dashed : LightweightCharts.LineStyle.Solid,
+                lastValueVisible: true,
+                priceLineVisible: false,
+                title: title
+            });
+            histLongAvgSeries = mainChart.addLineSeries(lineOptions('#58a6ff', 'AVG L'));
+            histLongTargetSeries = mainChart.addLineSeries(lineOptions('#26a69a', 'TP L', true));
+            histShortAvgSeries = mainChart.addLineSeries(lineOptions('#e3b341', 'AVG S'));
+            histShortTargetSeries = mainChart.addLineSeries(lineOptions('#f85149', 'TP S', true));
+
+            // 3. Renko Bricks (Top-most semi-transparent)
+            renkoSeries = mainChart.addCandlestickSeries({
+                upColor: 'rgba(88, 166, 255, 0.4)', 
+                downColor: 'rgba(248, 81, 73, 0.4)', 
+                borderVisible: false,
+                wickVisible: false
+            });
+
             setTimeout(() => {
                 loadSettings();
                 fetchHistory(null, 5000).then(() => {
-                    // After history is loaded, overlay Renko and strategy signals
                     fetchRenko();
-                    // Delay signals to ensure candleSeries is fully rendered
                     setTimeout(() => simulateStrategy(), 500);
                 });
                 startLiveUpdates();

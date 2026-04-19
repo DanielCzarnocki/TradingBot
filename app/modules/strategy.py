@@ -30,56 +30,40 @@ def get_renko_indicator(
 ):
     candles = db.query(Candle).order_by(Candle.timestamp.asc()).all()
     if not candles: return {"bricks": []}
-        
-    bricks_dict = {}
-    window, S, w_p = [], 0.0, weight_factor ** period
+    bricks_dict, window, S, w_p = {}, [], 0.0, weight_factor ** period
     curr_high, curr_low, direction = None, None, 0
-    
     for c in candles:
         diff = c.high - c.low
         window.append(diff)
         S = diff + weight_factor * S
         if len(window) > period: S -= window.pop(0) * w_p
-        
         step_size = max(0.01, S * multiplier)
-        if curr_high is None: curr_high = c.close; curr_low = c.close; continue
-            
+        if curr_high is None:
+            curr_high = c.close
+            curr_low = c.close
+            continue
         while True:
             brick_found = False
-            # Standard Renko: require 2x step for reversal
             if c.close >= curr_high + step_size:
                 b_o, b_c = curr_high, curr_high + step_size
-                curr_low, curr_high, direction = b_o, b_c, 1
-                brick_found = True
+                curr_low, curr_high, direction = b_o, b_c, 1; brick_found = True
             elif c.close <= curr_low - step_size:
                 b_o, b_c = curr_low, curr_low - step_size
-                curr_high, curr_low, direction = b_o, b_c, -1
-                brick_found = True
-            
+                curr_high, curr_low, direction = b_o, b_c, -1; brick_found = True
             if not brick_found: break
-
         t_sec = int(c.timestamp // 1000)
-        # Ribbon Fill
-        if direction == 1: b_o, b_c = curr_low, curr_high
-        elif direction == -1: b_o, b_c = curr_high, curr_low
-        else: b_o, b_c = curr_high, curr_high
-        
-        bricks_dict[t_sec] = {
-            "time": t_sec, "open": round(b_o, 2), "high": round(max(curr_high, curr_low), 2),
-            "low": round(min(curr_high, curr_low), 2), "close": round(b_c, 2)
-        }
-            
-    sorted_bricks = [bricks_dict[t] for t in sorted(bricks_dict.keys())]
-    return {"bricks": sorted_bricks}
+        b_o = curr_low if direction == 1 else (curr_high if direction == -1 else curr_high)
+        b_c = curr_high if direction == 1 else (curr_low if direction == -1 else curr_high)
+        bricks_dict[t_sec] = {"time": t_sec, "open": round(b_o, 2), "high": round(max(curr_high, curr_low), 2), "low": round(min(curr_high, curr_low), 2), "close": round(b_c, 2)}
+    return {"bricks": [bricks_dict[t] for t in sorted(bricks_dict.keys())]}
 
-# Base strategy functions
-def check_open_long(prev, curr, pos): return prev == -1 and curr == 1 and pos is None
-def check_average_long(p, c, f, cnt, pos): return pos == "long" and p == -1 and c == 1 and f and cnt > 0
-def check_close_long(c, price, target, pos): return pos == "long" and c == -1 and target and price > target
+def check_open_long(pd, cd, pos): return pd == -1 and cd == 1 and not pos
+def check_average_long(pd, cd, f, cnt, pos): return pos and pd == -1 and cd == 1 and f and cnt > 0
+def check_close_long(cd, p, t, pos): return pos and cd == -1 and t is not None and p > t
 
-def check_open_short(prev, curr, pos): return prev == 1 and curr == -1 and pos is None
-def check_average_short(p, c, f, cnt, pos): return pos == "short" and p == 1 and c == -1 and f and cnt > 0
-def check_close_short(c, price, target, pos): return pos == "short" and c == 1 and target and price < target
+def check_open_short(pd, cd, pos): return pd == 1 and cd == -1 and not pos
+def check_average_short(pd, cd, f, cnt, pos): return pos and pd == 1 and cd == -1 and f and cnt > 0
+def check_close_short(cd, p, t, pos): return pos and cd == 1 and t is not None and p < t
 
 @router.get("/simulate")
 def simulate_strategy(
@@ -91,14 +75,17 @@ def simulate_strategy(
 ):
     candles = db.query(Candle).order_by(Candle.timestamp.asc()).all()
     if not candles: return {"signals": []}
-
     window, S, w_p = [], 0.0, weight_factor ** period
     curr_high, curr_low, direction = None, None, 0
-    position, INITIAL_QTY = None, 1.0
+    INITIAL_QTY = 1.0
     
+    long_active = False
     long_entries, long_min_price, long_count, long_flag, long_target = [], None, 0, False, None
+    
+    short_active = False
     short_entries, short_max_price, short_count, short_flag, short_target = [], None, 0, False, None
-    signals = []
+    
+    signals, history_lines = [], []
 
     for c in candles:
         diff = c.high - c.low
@@ -106,58 +93,83 @@ def simulate_strategy(
         S = diff + weight_factor * S
         if len(window) > period: S -= window.pop(0) * w_p
         step_size = max(0.01, S * multiplier)
-
         if curr_high is None: curr_high = c.close; curr_low = c.close; continue
         
         while True:
             brick_formed = False
-            prev_dir = direction
-            
-            # Form BULLISH - require crossing curr_high + step_size
+            pd = direction
             if c.close >= curr_high + step_size:
-                curr_low, curr_high, direction = curr_high, curr_high + step_size, 1
-                brick_formed = True
-            # Form BEARISH - require crossing curr_low - step_size
+                b_o, b_c = curr_high, curr_high + step_size
+                curr_low, curr_high, direction = b_o, b_c, 1; brick_formed = True
             elif c.close <= curr_low - step_size:
-                curr_high, curr_low, direction = curr_low, curr_low - step_size, -1
-                brick_formed = True
+                b_o, b_c = curr_low, curr_low - step_size
+                curr_high, curr_low, direction = b_o, b_c, -1; brick_formed = True
             
             if brick_formed:
-                t = int(c.timestamp // 1000)
-                # Position Updates
-                if check_close_long(direction, c.close, long_target, position):
-                    signals.append({"time": t, "signal": "close_long", "price": round(c.close, 4)})
-                    position, long_entries, long_target, long_min_price, long_count, long_flag = None, [], None, None, 0, False
-                elif check_average_long(prev_dir, direction, long_flag, long_count, position):
-                    long_entries.append((c.close, INITIAL_QTY * long_count))
-                    w_a = sum(p * q for p, q in long_entries) / sum(q for _, q in long_entries)
-                    long_target = w_a * (1 + min_profit_pct / 100)
-                    signals.append({"time": t, "signal": "average_long", "price": round(c.close, 4), "counter": long_count, "avg_price": round(w_a, 4), "target": round(long_target, 4)})
-                    long_count, long_flag = 0, False
-                elif check_open_long(prev_dir, direction, position):
-                    position, long_entries = "long", [(c.close, INITIAL_QTY)]
+                t, cd = int(c.timestamp // 1000), direction
+                
+                # --- LONG SIDE INDEPENDENT ---
+                if long_active:
+                    if check_close_long(cd, c.close, long_target, long_active):
+                        signals.append({"time": t, "signal": "close_long", "price": round(c.close, 4)})
+                        long_active, long_entries, long_target, long_min_price, long_count, long_flag = False, [], None, None, 0, False
+                    elif check_average_long(pd, cd, long_flag, long_count, long_active):
+                        long_entries.append((c.close, INITIAL_QTY * long_count))
+                        w_a = sum(p * q for p, q in long_entries) / sum(q for _, q in long_entries)
+                        long_target = w_a * (1 + min_profit_pct / 100)
+                        signals.append({"time": t, "signal": "average_long", "price": round(c.close, 4), "counter": long_count, "avg_price": round(w_a, 4), "target": round(long_target, 4)})
+                        long_flag = False
+                elif check_open_long(pd, cd, long_active):
+                    long_active, long_entries = True, [(c.close, INITIAL_QTY)]
                     long_min_price, long_target = curr_low, c.close * (1 + min_profit_pct/100)
                     signals.append({"time": t, "signal": "open_long", "price": round(c.close, 4), "min_price": round(long_min_price, 4), "target": round(long_target, 4)})
 
-                elif check_close_short(direction, c.close, short_target, position):
-                    signals.append({"time": t, "signal": "close_short", "price": round(c.close, 4)})
-                    position, short_entries, short_target, short_max_price, short_count, short_flag = None, [], None, None, 0, False
-                elif check_average_short(prev_dir, direction, short_flag, short_count, position):
-                    short_entries.append((c.close, INITIAL_QTY * short_count))
-                    w_a = sum(p * q for p, q in short_entries) / sum(q for _, q in short_entries)
-                    short_target = w_a * (1 - min_profit_pct / 100)
-                    signals.append({"time": t, "signal": "average_short", "price": round(c.close, 4), "counter": short_count, "avg_price": round(w_a, 4), "target": round(short_target, 4)})
-                    short_count, short_flag = 0, False
-                elif check_open_short(prev_dir, direction, position):
-                    position, short_entries = "short", [(c.close, INITIAL_QTY)]
+                # --- SHORT SIDE INDEPENDENT ---
+                if short_active:
+                    if check_close_short(cd, c.close, short_target, short_active):
+                        signals.append({"time": t, "signal": "close_short", "price": round(c.close, 4)})
+                        short_active, short_entries, short_target, short_max_price, short_count, short_flag = False, [], None, None, 0, False
+                    elif check_average_short(pd, cd, short_flag, short_count, short_active):
+                        short_entries.append((c.close, INITIAL_QTY * short_count))
+                        w_a = sum(p * q for p, q in short_entries) / sum(q for _, q in short_entries)
+                        short_target = w_a * (1 - min_profit_pct / 100)
+                        signals.append({"time": t, "signal": "average_short", "price": round(c.close, 4), "counter": short_count, "avg_price": round(w_a, 4), "target": round(short_target, 4)})
+                        short_flag = False
+                elif check_open_short(pd, cd, short_active):
+                    short_active, short_entries = True, [(c.close, INITIAL_QTY)]
                     short_max_price, short_target = curr_high, c.close * (1 - min_profit_pct/100)
                     signals.append({"time": t, "signal": "open_short", "price": round(c.close, 4), "max_price": round(short_max_price, 4), "target": round(short_target, 4)})
 
-                # Averaging counters
-                if position == "long" and direction == -1:
-                    if long_min_price and curr_high < long_min_price: long_count += 1; long_min_price = curr_low; long_flag = True
-                if position == "short" and direction == 1:
-                    if short_max_price and curr_low > short_max_price: short_count += 1; short_max_price = curr_high; short_flag = True
+                # --- Update Averaging Counters (Both can be active) ---
+                if long_active and cd == -1:
+                    if long_min_price is not None and b_o < long_min_price:
+                        long_count += 1; long_min_price = b_c; long_flag = True
+                if short_active and cd == 1:
+                    if short_max_price is not None and b_o > short_max_price:
+                        short_count += 1; short_max_price = b_c; short_flag = True
             else: break
+        
+        # Collect history lines (per minute state)
+        t_now = int(c.timestamp // 1000)
+        if long_active:
+            w_a = sum(p * q for p, q in long_entries) / sum(q for _, q in long_entries)
+            history_lines.append({"time": t_now, "type": "long", "avg": round(w_a, 4), "target": round(long_target, 4)})
+        if short_active:
+            w_a = sum(p * q for p, q in short_entries) / sum(q for _, q in short_entries)
+            history_lines.append({"time": t_now, "type": "short", "avg": round(w_a, 4), "target": round(short_target, 4)})
 
-    return {"signals": signals}
+    t_q_l = sum(q for _, q in long_entries) if long_entries else 0
+    t_q_s = sum(q for _, q in short_entries) if short_entries else 0
+    l_avg = (sum(p * q for p, q in long_entries) / t_q_l) if t_q_l else None
+    s_avg = (sum(p * q for p, q in short_entries) / t_q_s) if t_q_s else None
+    
+    return {
+        "signals": signals, 
+        "history_lines": history_lines,
+        "current_long_active": long_active,
+        "current_short_active": short_active,
+        "long_avg_price": round(l_avg, 4) if l_avg else None,
+        "short_avg_price": round(s_avg, 4) if s_avg else None,
+        "long_target": round(long_target, 4) if long_target else None,
+        "short_target": round(short_target, 4) if short_target else None
+    }
