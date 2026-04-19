@@ -179,6 +179,56 @@ async def get_dashboard():
         }
         .form-control:focus { outline: none; border-color: #58a6ff; }
 
+        /* Analytics Panel Styles */
+        #analytics-panel {
+            position: absolute;
+            top: 50px; left: 10px; right: 10px;
+            height: 180px;
+            background: rgba(13, 17, 23, 0.95);
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            z-index: 1000;
+            display: none;
+            flex-direction: column;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            backdrop-filter: blur(10px);
+            animation: panelSlideDown 0.3s ease-out;
+        }
+        @keyframes panelSlideDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .analytics-header {
+            padding: 10px 20px;
+            border-bottom: 1px solid #30363d;
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 13px; font-weight: bold; color: #58a6ff;
+        }
+        .analytics-body {
+            flex-grow: 1; padding: 15px 25px;
+            display: flex; align-items: flex-end; gap: 15px;
+            overflow-x: auto;
+        }
+        .bar-container {
+            flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px;
+            min-width: 60px; max-width: 100px;
+        }
+        .bar {
+            width: 100%; border-radius: 4px 4px 0 0;
+            background: linear-gradient(to top, #238636, #2ea043);
+            transition: height 0.5s ease-in-out;
+            position: relative;
+            cursor: pointer;
+        }
+        .bar:hover { filter: brightness(1.2); }
+        .bar-label { font-size: 10px; color: #8b949e; text-align: center; }
+        .bar-value { 
+            position: absolute; top: -18px; width: 100%; text-align: center;
+            font-size: 11px; font-weight: bold; color: #c9d1d9;
+        }
+        .analytics-close { cursor: pointer; color: #8b949e; font-size: 18px; }
+        .analytics-close:hover { color: #f85149; }
+
         @keyframes modalFadeIn {
             from { opacity: 0; transform: translateY(-10px); }
             to { opacity: 1; transform: translateY(0); }
@@ -195,6 +245,7 @@ async def get_dashboard():
             <button class="tool-btn" id="strategy-btn">Strategia ▼</button>
             <div id="strategy-dropdown" class="dropdown-content">
                 <a id="btn-open-settings">⚙️ Ustawienia strategii</a>
+                <a id="btn-open-analytics">📊 Analityka</a>
             </div>
         </div>
 
@@ -204,6 +255,17 @@ async def get_dashboard():
     
     <div id="chart-container">
         <div id="loading-overlay">Loading historical data...</div>
+        
+        <!-- Analytics Panel Container -->
+        <div id="analytics-panel">
+            <div class="analytics-header">
+                <span>ANALIZA STATYSTYCZNA UŚREDNIEŃ (DCA)</span>
+                <span class="analytics-close" id="close-analytics-btn">&times;</span>
+            </div>
+            <div class="analytics-body" id="analytics-bars-container">
+                <!-- Bars will be generated here -->
+            </div>
+        </div>
     </div>
 
     <!-- Strategy Settings Modal -->
@@ -266,6 +328,11 @@ async def get_dashboard():
         const closeModalBtn = document.getElementById('close-modal-btn');
         const cancelSettingsBtn = document.getElementById('cancel-settings-btn');
         const saveSettingsBtn = document.getElementById('save-settings-btn');
+        
+        const analyticsPanel = document.getElementById('analytics-panel');
+        const btnOpenAnalytics = document.getElementById('btn-open-analytics');
+        const closeAnalyticsBtn = document.getElementById('close-analytics-btn');
+        const barsContainer = document.getElementById('analytics-bars-container');
 
         // Dropdown Logic
         strategyBtn.addEventListener('click', (e) => {
@@ -349,6 +416,65 @@ async def get_dashboard():
         multiplierInput.addEventListener('input', calculateTrend);
         minProfitInput.addEventListener('input', calculateTrend);
 
+        // Analytics Logic
+        function updateAnalytics(signals) {
+            if (!signals || signals.length === 0) return;
+            
+            // Group signals into positions and count averages
+            const avgCounts = {}; // { count: frequency }
+            let tempAverages = 0;
+            let inPosition = false;
+
+            // Simple logic: count average_X signals between open_X and close_X
+            // Since hedge mode exists, we track long and short separately
+            let longAvgs = 0, shortAvgs = 0;
+            let longActive = false, shortActive = false;
+
+            signals.forEach(s => {
+                if (s.signal === 'open_long') { longActive = true; longAvgs = 0; }
+                else if (s.signal === 'average_long') { longAvgs++; }
+                else if (s.signal === 'close_long') { 
+                    avgCounts[longAvgs] = (avgCounts[longAvgs] || 0) + 1;
+                    longActive = false;
+                }
+                
+                if (s.signal === 'open_short') { shortActive = true; shortAvgs = 0; }
+                else if (s.signal === 'average_short') { shortAvgs++; }
+                else if (s.signal === 'close_short') {
+                    avgCounts[shortAvgs] = (avgCounts[shortAvgs] || 0) + 1;
+                    shortActive = false;
+                }
+            });
+
+            // Render Bars
+            barsContainer.innerHTML = '';
+            const maxCounts = Math.max(...Object.keys(avgCounts).map(Number), 5);
+            const totalPositions = Object.values(avgCounts).reduce((a, b) => a + b, 0);
+            const maxFreq = Math.max(...Object.values(avgCounts), 1);
+
+            for (let i = 0; i <= maxCounts; i++) {
+                const freq = avgCounts[i] || 0;
+                const heightPct = (freq / maxFreq) * 100;
+                
+                const barHtml = `
+                    <div class="bar-container">
+                        <div class="bar" style="height: ${Math.max(heightPct, 5)}%">
+                            <div class="bar-value">${freq}</div>
+                        </div>
+                        <div class="bar-label">${i} uśr.</div>
+                    </div>
+                `;
+                barsContainer.innerHTML += barHtml;
+            }
+        }
+
+        btnOpenAnalytics.addEventListener('click', () => {
+            analyticsPanel.style.display = 'flex';
+        });
+        closeAnalyticsBtn.addEventListener('click', () => {
+            analyticsPanel.style.display = 'none';
+        });
+
         async function simulateStrategy() {
             const period = parseInt(trendPeriodInput.value) || 100;
             const factor = parseFloat(weightFactorInput.value) || 0.87;
@@ -359,6 +485,8 @@ async def get_dashboard():
                 const res = await fetch(`/api/strategy/simulate?period=${period}&weight_factor=${factor}&multiplier=${multiplier}&min_profit_pct=${minProfit}`);
                 const data = await res.json();
                 
+                updateAnalytics(data.signals);
+
                 // Handle Historical and Active Lines (Segmented)
                 // hist series are pre-initialized in initChart
 
