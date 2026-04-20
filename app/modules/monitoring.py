@@ -5,6 +5,7 @@ from datetime import datetime
 import requests
 from sqlalchemy import func
 from app.database.connection import SessionLocal
+from app.database.settings_connection import SessionLocalSettings
 from app.database.models import Candle
 from app.modules.state import state
 
@@ -67,12 +68,15 @@ class HistorySynchronizer:
                         db.add(candle)
                         count += 1
                     else:
-                        # Update existing for the very newest data (polling updates)
-                        existing.open = float(item[1])
-                        existing.high = float(item[2])
-                        existing.low = float(item[3])
-                        existing.close = float(item[4])
-                        existing.volume = float(item[5])
+                        # Update existing candle if it's recent (might be incomplete)
+                        # MEXC timestamps are in ms. 120s buffer to be safe.
+                        import time
+                        if ts > (int(time.time() * 1000) - 120000):
+                            existing.open = float(item[1])
+                            existing.high = float(item[2])
+                            existing.low = float(item[3])
+                            existing.close = float(item[4])
+                            existing.volume = float(item[5])
                 
                 db.commit()
                 return count
@@ -231,6 +235,9 @@ class RestPollingMonitor:
             self.status_ui.update("monitoring", "done", extra="Live (Polling)")
         state.update_status("Live", "Polling REST API")
 
+        # Import here to avoid circular imports at module load time
+        from app.modules.strategy import run_simulation
+
         while self.is_running:
             try:
                 # Fetch latest 5 candles to ensure no misses
@@ -240,7 +247,18 @@ class RestPollingMonitor:
                     data = response.json()
                     if data:
                         await self.synchronizer._save_candles(data)
-                
+
+                        # Trigger incremental simulation immediately after new data
+                        db_market   = SessionLocal()
+                        db_settings = SessionLocalSettings()
+                        try:
+                            run_simulation(db_market, db_settings)
+                        except Exception as sim_err:
+                            logger.error(f"Strategy sim error: {sim_err}")
+                        finally:
+                            db_market.close()
+                            db_settings.close()
+
                 await asyncio.sleep(5) # Poll every 5 seconds
             except Exception as e:
                 logger.error(f"Polling monitor error: {e}")

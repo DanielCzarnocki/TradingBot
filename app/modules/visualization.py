@@ -134,8 +134,8 @@ async def get_dashboard():
             background-color: #0d1117;
             border: 1px solid #30363d;
             border-radius: 10px;
-            width: 400px;
-            max-width: 90%;
+            width: 750px;
+            max-width: 95%;
             box-shadow: 0 10px 30px rgba(0,0,0,0.8);
             display: flex;
             flex-direction: column;
@@ -356,26 +356,31 @@ async def get_dashboard():
                 Ustawienia Strategii
                 <div class="modal-close" id="close-modal-btn">&times;</div>
             </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label for="trend-period">Szerokość badana (ilość świec high/low)</label>
-                    <input type="number" id="trend-period" class="form-control" value="100" min="10" max="1000">
+            <div class="modal-body" style="display: flex; gap: 30px;">
+                <div style="flex: 1;">
+                    <div class="form-group">
+                        <label for="trend-period">Szerokość badana (ilość świec high/low)</label>
+                        <input type="number" id="trend-period" class="form-control" value="100" min="10" max="1000">
+                    </div>
+                    <div class="form-group">
+                        <label for="weight-factor">Współczynnik wagi (zmniejszanie o)</label>
+                        <input type="number" id="weight-factor" class="form-control" value="0.87" step="0.01" min="0.1" max="1.0">
+                    </div>
+                    <div class="form-group">
+                        <label for="multiplier-value">Mnożnik wyniku końcowego</label>
+                        <input type="number" id="multiplier-value" class="form-control" value="1.0" step="0.1" min="0.1">
+                    </div>
+                    <div class="form-group">
+                        <label for="min-profit">Minimalny zysk do zamknięcia (%)</label>
+                        <input type="number" id="min-profit" class="form-control" value="0.2" step="0.05" min="0.01">
+                    </div>
+                    <div style="margin-top: 20px; padding: 15px; background: #161b22; border-radius: 6px; border: 1px solid #30363d;">
+                        <div style="color: #8b949e; font-size: 12px; margin-bottom: 5px;">Aktualny wynik z <span id="calc-candles-count">100</span> świec:</div>
+                        <div id="strategy-result" style="font-size: 24px; font-weight: bold; color: #58a6ff;">0.0000</div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="weight-factor">Współczynnik wagi (zmniejszanie o)</label>
-                    <input type="number" id="weight-factor" class="form-control" value="0.87" step="0.01" min="0.1" max="1.0">
-                </div>
-                <div class="form-group">
-                    <label for="multiplier-value">Mnożnik wyniku końcowego</label>
-                    <input type="number" id="multiplier-value" class="form-control" value="1.0" step="0.1" min="0.1">
-                </div>
-                <div class="form-group">
-                    <label for="min-profit">Minimalny zysk do zamknięcia (%)</label>
-                    <input type="number" id="min-profit" class="form-control" value="0.2" step="0.05" min="0.01">
-                </div>
-                <div style="margin-top: 20px; padding: 15px; background: #161b22; border-radius: 6px; border: 1px solid #30363d;">
-                    <div style="color: #8b949e; font-size: 12px; margin-bottom: 5px;">Aktualny wynik z <span id="calc-candles-count">100</span> świec:</div>
-                    <div id="strategy-result" style="font-size: 24px; font-weight: bold; color: #58a6ff;">0.0000</div>
+                <div style="flex: 1; border-left: 1px solid #30363d; padding-left: 30px;">
+                    <div style="font-weight: bold; color: #58a6ff; margin-bottom: 20px; text-transform: uppercase; font-size: 12px; letter-spacing: 1px;">ustawienia triggera</div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -491,7 +496,6 @@ async def get_dashboard():
                     })
                 });
                 calculateTrend();
-                fetchRenko();
                 simulateStrategy();
             } catch (err) {
                 console.error("Błąd zapisu ustawień", err);
@@ -732,12 +736,12 @@ async def get_dashboard():
                     data.history_lines.forEach(h => {
                         const val = h.avg || 0;
                         const tval = h.target || 0;
-                        if (h.type === 'long') { 
-                            lAvg.push({ time: h.time, value: val }); 
-                            lTp.push({ time: h.time, value: tval }); 
-                        } else { 
-                            sAvg.push({ time: h.time, value: val }); 
-                            sTp.push({ time: h.time, value: tval }); 
+                        if (h.type === 'long') {
+                            lAvg.push({ time: h.time, value: val });
+                            lTp.push({ time: h.time, value: tval });
+                        } else {
+                            sAvg.push({ time: h.time, value: val });
+                            sTp.push({ time: h.time, value: tval });
                         }
                     });
                     histLongAvgSeries.setData(lAvg);
@@ -783,8 +787,7 @@ async def get_dashboard():
                 try {
                     candleSeries.setMarkers(markers);
                     console.log("setMarkers OK");
-                    // Zoom out to show all signals
-                    mainChart.timeScale().fitContent();
+                    // Do NOT call fitContent() here to preserve user's zoom/scroll
                 } catch(markerErr) {
                     console.error("setMarkers FAILED:", markerErr);
                 }
@@ -859,7 +862,9 @@ async def get_dashboard():
 
             // Lazy Loading Logic
             mainChart.timeScale().subscribeVisibleTimeRangeChange((range) => {
-                if (!range || isLoading || allDataLoaded || !earliestTimestamp) return;
+                if (!range) return;
+                userHasChangedView = true;
+                if (isLoading || allDataLoaded || !earliestTimestamp) return;
                 if (range.from < (earliestTimestamp / 1000) + 60) {
                     fetchHistory(earliestTimestamp, 500);
                 }
@@ -890,7 +895,9 @@ async def get_dashboard():
                     } else {
                         candleSeries.setData(sortedCandles);
                         lastTimestamp = sortedCandles[sortedCandles.length - 1].time * 1000;
-                        setTimeout(() => mainChart.timeScale().fitContent(), 50);
+                        if (!userHasChangedView) {
+                            setTimeout(() => mainChart.timeScale().fitContent(), 50);
+                        }
                     }
                     earliestTimestamp = sortedCandles[0].time * 1000;
                 } else if (before) {
@@ -933,6 +940,15 @@ async def get_dashboard():
                     }
                 } catch (e) {}
             }, 5000);
+
+            // 3. Polling Strategy Simulation (1 second)
+            setInterval(async () => {
+                try {
+                    await simulateStrategy();
+                } catch (e) {
+                    console.error("Strategy simulation polling error:", e);
+                }
+            }, 1000);
         }
 
         if (document.readyState === 'complete') initChart();

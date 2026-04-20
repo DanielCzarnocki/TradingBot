@@ -9,6 +9,8 @@ venv/
 
 # Databases
 *.db
+*.db-shm
+*.db-wal
 *.sqlite3
 
 # Project specific

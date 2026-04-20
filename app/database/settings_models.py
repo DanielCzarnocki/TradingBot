@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String
+from sqlalchemy import Column, String, Float, Integer
 from app.database.settings_connection import BaseSettings
 
 class AppSetting(BaseSettings):
@@ -6,3 +6,14 @@ class AppSetting(BaseSettings):
 
     key = Column(String, primary_key=True, index=True)
     value = Column(String)
+
+class StrategySettings(BaseSettings):
+    __tablename__ = "strategy_settings"
+
+    id = Column(Integer, primary_key=True, default=1)
+    period = Column(Integer, default=100)
+    weight_factor = Column(Float, default=0.87)
+    multiplier = Column(Float, default=1.0)
+    min_profit_pct = Column(Float, default=0.2)
+    initial_qty = Column(Float, default=1.0)
+    contract_size = Column(Float, default=0.01)
