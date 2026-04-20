@@ -720,6 +720,10 @@ async def get_dashboard():
                 updateAnalytics(data.signals);
                 updatePositionHUD(data);
 
+                if (data.renko && data.renko.length > 0) {
+                    renkoSeries.setData(data.renko);
+                }
+
                 // Handle Historical and Active Lines (Segmented)
                 // hist series are pre-initialized in initChart
 
@@ -848,7 +852,6 @@ async def get_dashboard():
             setTimeout(() => {
                 loadSettings();
                 fetchHistory(null, 5000).then(() => {
-                    fetchRenko();
                     setTimeout(() => simulateStrategy(), 500);
                 });
                 startLiveUpdates();

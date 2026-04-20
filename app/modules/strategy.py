@@ -88,7 +88,7 @@ def simulate_strategy(
     short_active = False
     short_entries, short_max_price, short_count, short_flag, short_target = [], None, 0, False, None
     
-    signals, history_lines = [], []
+    signals, history_lines, renko_bricks = [], [], []
 
     for c in candles:
         diff = c.high - c.low
@@ -110,6 +110,10 @@ def simulate_strategy(
             
             if brick_formed:
                 t, cd = int(c.timestamp // 1000), direction
+                renko_bricks.append({
+                    "time": t, "open": round(b_o, 2), "high": round(max(b_o, b_c), 2), 
+                    "low": round(min(b_o, b_c), 2), "close": round(b_c, 2)
+                })
                 
                 # --- LONG SIDE INDEPENDENT ---
                 if long_active:
@@ -182,6 +186,7 @@ def simulate_strategy(
     return {
         "signals": signals, 
         "history_lines": history_lines,
+        "renko": renko_bricks,
         "current_long_active": long_active,
         "current_short_active": short_active,
         "long_avg_price": round(l_avg, 4) if l_avg else None,
