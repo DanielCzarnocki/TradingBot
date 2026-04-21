@@ -56,6 +56,18 @@ async def get_dashboard():
             background-color: #30363d;
             border-color: #8b949e;
         }
+
+        .tool-btn.active {
+            background-color: #1f6feb;
+            border-color: #58a6ff;
+            color: white;
+        }
+
+        .tool-btn.disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
         
         #chart-container {
             flex-grow: 1;
@@ -215,7 +227,7 @@ async def get_dashboard():
         #analytics-panel {
             position: absolute;
             top: 50px; left: 10px; right: 10px;
-            height: 180px;
+            height: 420px;
             background: rgba(13, 17, 23, 0.98);
             border: 1px solid #30363d;
             border-radius: 8px;
@@ -236,8 +248,17 @@ async def get_dashboard():
             display: flex; justify-content: space-between; align-items: center;
             font-size: 11px; font-weight: bold; color: #58a6ff;
         }
-        .analytics-main {
-            flex-grow: 1; display: flex; overflow: hidden;
+        .analytics-main { flex-grow: 1; display: flex; overflow: hidden; min-height: 0; }
+        .analytics-rows { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; }
+        .analytics-row { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        .analytics-row + .analytics-row { border-top: 1px solid #30363d; }
+        .analytics-row-header {
+            padding: 6px 12px;
+            font-size: 11px;
+            font-weight: bold;
+            color: #8b949e;
+            border-bottom: 1px solid #30363d;
+            background: rgba(110, 118, 129, 0.05);
         }
         .analytics-body {
             flex-grow: 3; padding: 10px 20px;
@@ -246,13 +267,26 @@ async def get_dashboard():
             border-right: 1px solid #30363d;
         }
         .analytics-stats-sidebar {
-            flex-grow: 1; min-width: 150px; padding: 15px;
-            display: flex; flex-direction: column; gap: 10px;
+            flex: 0 0 240px;
+            min-width: 240px;
+            padding: 10px 12px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px 10px;
+            align-content: start;
             background: rgba(110, 118, 129, 0.05);
+            overflow-y: auto;
         }
-        .stat-item { display: flex; flex-direction: column; gap: 2px; }
-        .stat-label { font-size: 10px; color: #8b949e; text-transform: uppercase; }
-        .stat-value { font-size: 14px; font-weight: bold; color: #c9d1d9; }
+        .stat-item { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+        .stat-label { font-size: 9px; color: #8b949e; text-transform: uppercase; white-space: nowrap; }
+        .stat-value {
+            font-size: 12px;
+            line-height: 1.15;
+            font-weight: bold;
+            color: #c9d1d9;
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
         .stat-value.profit { color: #3fb950; }
         .stat-value.loss { color: #f85149; }
         .bar-container {
@@ -296,6 +330,9 @@ async def get_dashboard():
             </div>
         </div>
 
+        <button class="tool-btn active" id="toggle-strat-1" title="Pokaż/Ukryj Strategię 1">👁️ Strat 1</button>
+        <button class="tool-btn active" id="toggle-strat-2" title="Pokaż/Ukryj Strategię 2">👁️ Strat 2</button>
+
         <div style="flex-grow: 1;"></div>
         <div id="status-tag" style="font-size: 12px; color: #8b949e;">Live Data Offline (Historical Mode)</div>
     </div>
@@ -322,27 +359,72 @@ async def get_dashboard():
         <!-- Analytics Panel Container -->
         <div id="analytics-panel">
             <div class="analytics-header">
-                <div>ANALIZA STATYSTYCZNA UŚREDNIEŃ (DCA) <span id="analytics-total-count" style="margin-left: 20px; color: #8b949e; opacity: 0.7;"></span></div>
+                <div>DCA STATISTICAL ANALYSIS</div>
                 <span class="analytics-close" id="close-analytics-btn">&times;</span>
             </div>
-            <div class="analytics-main">
-                <div class="analytics-body" id="analytics-bars-container"></div>
-                <div class="analytics-stats-sidebar">
-                    <div class="stat-item">
-                        <span class="stat-label">Całkowity PNL</span>
-                        <span class="stat-value" id="stats-total-pnl">0.00</span>
+            <div class="analytics-rows">
+                <div class="analytics-row">
+                    <div class="analytics-row-header">L1 <span id="analytics-total-count-l1" style="margin-left: 20px; color: #8b949e; opacity: 0.7;"></span></div>
+                    <div class="analytics-main">
+                        <div class="analytics-body" id="analytics-bars-container-l1"></div>
+                        <div class="analytics-stats-sidebar">
+                            <div class="stat-item">
+                                <span class="stat-label">Total PNL</span>
+                                <span class="stat-value" id="stats-total-pnl-l1">0.00</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Average PNL</span>
+                                <span class="stat-value" id="stats-avg-pnl-l1">0.00</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Max PNL</span>
+                                <span class="stat-value profit" id="stats-max-pnl-l1">0.00</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Min PNL</span>
+                                <span class="stat-value loss" id="stats-min-pnl-l1">0.00</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Profitable Closes</span>
+                                <span class="stat-value" id="stats-profitable-closes-l1">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Losing Closes</span>
+                                <span class="stat-value" id="stats-losing-closes-l1">0</span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Średni PNL</span>
-                        <span class="stat-value" id="stats-avg-pnl">0.00</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Najwyższy PNL</span>
-                        <span class="stat-value profit" id="stats-max-pnl">0.00</span>
-                    </div>
-                    <div class="stat-item">
-                        <span class="stat-label">Najniższy PNL</span>
-                        <span class="stat-value loss" id="stats-min-pnl">0.00</span>
+                </div>
+                <div class="analytics-row">
+                    <div class="analytics-row-header">L2 <span id="analytics-total-count-l2" style="margin-left: 20px; color: #8b949e; opacity: 0.7;"></span></div>
+                    <div class="analytics-main">
+                        <div class="analytics-body" id="analytics-bars-container-l2"></div>
+                        <div class="analytics-stats-sidebar">
+                            <div class="stat-item">
+                                <span class="stat-label">Total PNL</span>
+                                <span class="stat-value" id="stats-total-pnl-l2">0.00</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Average PNL</span>
+                                <span class="stat-value" id="stats-avg-pnl-l2">0.00</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Max PNL</span>
+                                <span class="stat-value profit" id="stats-max-pnl-l2">0.00</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Min PNL</span>
+                                <span class="stat-value loss" id="stats-min-pnl-l2">0.00</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Profitable Closes</span>
+                                <span class="stat-value" id="stats-profitable-closes-l2">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Losing Closes</span>
+                                <span class="stat-value" id="stats-losing-closes-l2">0</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -381,6 +463,69 @@ async def get_dashboard():
                 </div>
                 <div style="flex: 1; border-left: 1px solid #30363d; padding-left: 30px;">
                     <div style="font-weight: bold; color: #58a6ff; margin-bottom: 20px; text-transform: uppercase; font-size: 12px; letter-spacing: 1px;">ustawienia triggera</div>
+                    
+                    <!-- Row 1: Probability -->
+                    <div class="form-group">
+                        <label>Prawdopodobieństwo (Prob)</label>
+                        <div style="display: flex; gap: 10px; margin-top: 5px;">
+                            <div style="flex: 1; display: flex; flex-direction: column; gap: 5px;">
+                                <div style="background: #161b22; padding: 8px; border-radius: 4px; border: 1px solid #30363d;">
+                                    <div style="font-size: 10px; color: #8b949e;">LONG</div>
+                                    <div id="modal-long-avgs" style="font-size: 13px; font-weight: bold; color: #c9d1d9;">0 (0.0%)</div>
+                                </div>
+                                <input type="number" id="mult-long-prob" class="form-control" value="1.0" step="0.1" style="font-size: 11px; padding: 4px;" title="Mnożnik Prob Long">
+                            </div>
+                            <div style="flex: 1; display: flex; flex-direction: column; gap: 5px;">
+                                <div style="background: #161b22; padding: 8px; border-radius: 4px; border: 1px solid #30363d;">
+                                    <div style="font-size: 10px; color: #8b949e;">SHORT</div>
+                                    <div id="modal-short-avgs" style="font-size: 13px; font-weight: bold; color: #c9d1d9;">0 (0.0%)</div>
+                                </div>
+                                <input type="number" id="mult-short-prob" class="form-control" value="1.0" step="0.1" style="font-size: 11px; padding: 4px;" title="Mnożnik Prob Short">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Row 2: PnL -->
+                    <div class="form-group">
+                        <label>Aktualny PnL %</label>
+                        <div style="display: flex; gap: 10px; margin-top: 5px;">
+                            <div style="flex: 1; display: flex; flex-direction: column; gap: 5px;">
+                                <div style="background: #161b22; padding: 8px; border-radius: 4px; border: 1px solid #30363d;">
+                                    <div style="font-size: 10px; color: #8b949e;">LONG</div>
+                                    <div id="modal-long-pnl" style="font-size: 13px; font-weight: bold; color: #c9d1d9;">0.00%</div>
+                                </div>
+                                <input type="number" id="mult-long-pnl" class="form-control" value="1.0" step="0.1" style="font-size: 11px; padding: 4px;" title="Mnożnik PnL Long">
+                            </div>
+                            <div style="flex: 1; display: flex; flex-direction: column; gap: 5px;">
+                                <div style="background: #161b22; padding: 8px; border-radius: 4px; border: 1px solid #30363d;">
+                                    <div style="font-size: 10px; color: #8b949e;">SHORT</div>
+                                    <div id="modal-short-pnl" style="font-size: 13px; font-weight: bold; color: #c9d1d9;">0.00%</div>
+                                </div>
+                                <input type="number" id="mult-short-pnl" class="form-control" value="1.0" step="0.1" style="font-size: 11px; padding: 4px;" title="Mnożnik PnL Short">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Row 3: Result -->
+                    <div class="form-group">
+                        <label>Wynik Końcowy</label>
+                        <div style="display: flex; gap: 10px; margin-top: 5px;">
+                            <div style="flex: 1; display: flex; flex-direction: column; gap: 5px;">
+                                <div style="background: #161b22; padding: 8px; border-radius: 4px; border: 1px solid #30363d;">
+                                    <div style="font-size: 10px; color: #8b949e;">LONG</div>
+                                    <div id="trigger-result-long" style="font-size: 15px; font-weight: bold; color: #58a6ff;">0.00%</div>
+                                </div>
+                                <input type="number" id="mult-res-long" class="form-control" value="1.0" step="0.1" style="font-size: 11px; padding: 4px;" title="Mnożnik Wyniku Long">
+                            </div>
+                            <div style="flex: 1; display: flex; flex-direction: column; gap: 5px;">
+                                <div style="background: #161b22; padding: 8px; border-radius: 4px; border: 1px solid #30363d;">
+                                    <div style="font-size: 10px; color: #8b949e;">SHORT</div>
+                                    <div id="trigger-result-short" style="font-size: 15px; font-weight: bold; color: #e3b341;">0.00%</div>
+                                </div>
+                                <input type="number" id="mult-res-short" class="form-control" value="1.0" step="0.1" style="font-size: 11px; padding: 4px;" title="Mnożnik Wyniku Short">
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -426,12 +571,23 @@ async def get_dashboard():
         let earliestTimestamp = null;
         let lastTimestamp = null;
         let isLoading = false;
+        let isSimulating = false;
         let allDataLoaded = false;
+        let userHasChangedView = false;
         
         let histLongAvgSeries = null;
         let histLongTargetSeries = null;
         let histShortAvgSeries = null;
         let histShortTargetSeries = null;
+
+        let renkoUpperLine = null;
+        let renkoLowerLine = null;
+        let longTriggerLine = null;
+        let shortTriggerLine = null;
+
+        let currentProbabilities = {}; // Store probabilities for modal
+        let strategy1Visible = true;
+        let strategy2Visible = true;
 
         // Modal Elements
         const strategyBtn = document.getElementById('strategy-btn');
@@ -453,8 +609,8 @@ async def get_dashboard():
         const analyticsPanel = document.getElementById('analytics-panel');
         const btnOpenAnalytics = document.getElementById('btn-open-analytics');
         const closeAnalyticsBtn = document.getElementById('close-analytics-btn');
-        const barsContainer = document.getElementById('analytics-bars-container');
-        const analyticsTotalCount = document.getElementById('analytics-total-count');
+        const btnToggleStrat1 = document.getElementById('toggle-strat-1');
+        const btnToggleStrat2 = document.getElementById('toggle-strat-2');
 
         // Dropdown Logic
         strategyBtn.addEventListener('click', (e) => {
@@ -480,6 +636,13 @@ async def get_dashboard():
             const iQty = initialQtyInput.value;
             const cSize = contractSizeInput.value;
             
+            const mlProb = document.getElementById('mult-long-prob').value;
+            const msProb = document.getElementById('mult-short-prob').value;
+            const mlPnl = document.getElementById('mult-long-pnl').value;
+            const msPnl = document.getElementById('mult-short-pnl').value;
+            const mrLong = document.getElementById('mult-res-long').value;
+            const mrShort = document.getElementById('mult-res-short').value;
+
             try {
                 await fetch('/api/settings', {
                     method: 'POST',
@@ -491,7 +654,13 @@ async def get_dashboard():
                             "multiplier": multiplier,
                             "min_profit": minProfit,
                             "initial_qty": iQty,
-                            "contract_size": cSize
+                            "contract_size": cSize,
+                            "mult_long_prob": mlProb,
+                            "mult_short_prob": msProb,
+                            "mult_long_pnl": mlPnl,
+                            "mult_short_pnl": msPnl,
+                            "mult_res_long": mrLong,
+                            "mult_res_short": mrShort
                         }
                     })
                 });
@@ -517,6 +686,44 @@ async def get_dashboard():
                 strategyDropdown.classList.remove('show');
             }
         });
+
+        btnToggleStrat1.addEventListener('click', () => {
+            strategy1Visible = !strategy1Visible;
+            btnToggleStrat1.classList.toggle('active', strategy1Visible);
+            btnToggleStrat1.innerText = strategy1Visible ? '👁️ Strat 1' : '❌ Strat 1';
+            
+            const visibility = strategy1Visible;
+            // renkoSeries remains visible as requested
+            histLongAvgSeries.applyOptions({ visible: visibility });
+            histLongTargetSeries.applyOptions({ visible: visibility });
+            histShortAvgSeries.applyOptions({ visible: visibility });
+            histShortTargetSeries.applyOptions({ visible: visibility });
+            renkoUpperLine.applyOptions({ visible: visibility });
+            renkoLowerLine.applyOptions({ visible: visibility });
+            longTriggerLine.applyOptions({ visible: visibility });
+            shortTriggerLine.applyOptions({ visible: visibility });
+            
+            if (!visibility) {
+                candleSeries.setMarkers([]);
+            }
+        });
+
+        if (btnToggleStrat2) {
+            btnToggleStrat2.addEventListener('click', () => {
+                strategy2Visible = !strategy2Visible;
+                btnToggleStrat2.classList.toggle('active', strategy2Visible);
+                btnToggleStrat2.innerText = strategy2Visible ? '👁️ Strat 2' : '❌ Strat 2';
+                
+                const visibility = strategy2Visible;
+                histL2LongAvgSeries.applyOptions({ visible: visibility });
+                histL2LongTargetSeries.applyOptions({ visible: visibility });
+                histL2ShortAvgSeries.applyOptions({ visible: visibility });
+                histL2ShortTargetSeries.applyOptions({ visible: visibility });
+                
+                // Force marker update
+                simulateStrategy();
+            });
+        }
         
         // Strategy Calculation Logic - declared before loadSettings to avoid reference errors
         const trendPeriodInput = document.getElementById('trend-period');
@@ -539,6 +746,13 @@ async def get_dashboard():
                 if (data["initial_qty"]) initialQtyInput.value = data["initial_qty"];
                 if (data["contract_size"]) contractSizeInput.value = data["contract_size"];
                 
+                if (data["mult_long_prob"]) document.getElementById('mult-long-prob').value = data["mult_long_prob"];
+                if (data["mult_short_prob"]) document.getElementById('mult-short-prob').value = data["mult_short_prob"];
+                if (data["mult_long_pnl"]) document.getElementById('mult-long-pnl').value = data["mult_long_pnl"];
+                if (data["mult_short_pnl"]) document.getElementById('mult-short-pnl').value = data["mult_short_pnl"];
+                if (data["mult_res_long"]) document.getElementById('mult-res-long').value = data["mult_res_long"];
+                if (data["mult_res_short"]) document.getElementById('mult-res-short').value = data["mult_res_short"];
+
                 calculateTrend();
                 simulateStrategy();
             } catch (err) {
@@ -592,87 +806,127 @@ async def get_dashboard():
         minProfitInput.addEventListener('input', calculateTrend);
 
         // Analytics Logic - Discrete Probability Histogram
-        function updateAnalytics(signals) {
-            if (!signals || signals.length === 0) return;
-            
-            const avgCounts = {};
-            const pnlList = [];
-            let longAvgs = 0, shortAvgs = 0;
-            let longActive = false, shortActive = false;
+        function updateAnalytics(data) {
+            const buildAnalyticsFromSignals = (signals) => {
+                const avgCounts = {};
+                const pnlList = [];
+                let profitableCloses = 0;
+                let losingCloses = 0;
+                let longAvgs = 0;
+                let shortAvgs = 0;
 
-            signals.forEach(s => {
-                if (s.signal === 'open_long') { longActive = true; longAvgs = 0; }
-                else if (s.signal === 'average_long') { longAvgs++; }
-                else if (s.signal === 'close_long') { 
-                    avgCounts[longAvgs] = (avgCounts[longAvgs] || 0) + 1;
-                    if (s.pnl !== undefined) pnlList.push(s.pnl);
-                    longActive = false;
-                }
-                
-                if (s.signal === 'open_short') { shortActive = true; shortAvgs = 0; }
-                else if (s.signal === 'average_short') { shortAvgs++; }
-                else if (s.signal === 'close_short') {
-                    avgCounts[shortAvgs] = (avgCounts[shortAvgs] || 0) + 1;
-                    if (s.pnl !== undefined) pnlList.push(s.pnl);
-                    shortActive = false;
-                }
-            });
+                (signals || []).forEach(s => {
+                    const sig = s.signal;
+                    if (sig === 'open_long') longAvgs = 0;
+                    else if (sig === 'average_long') longAvgs += 1;
+                    else if (sig === 'close_long') {
+                        avgCounts[longAvgs] = (avgCounts[longAvgs] || 0) + 1;
+                        if (s.pnl !== undefined) {
+                            const pnlVal = Number(s.pnl);
+                            pnlList.push(pnlVal);
+                            if (pnlVal > 0) profitableCloses += 1;
+                            else if (pnlVal < 0) losingCloses += 1;
+                        }
+                    }
 
-            // Update PNL Stats
-            if (pnlList.length > 0) {
+                    if (sig === 'open_short') shortAvgs = 0;
+                    else if (sig === 'average_short') shortAvgs += 1;
+                    else if (sig === 'close_short') {
+                        avgCounts[shortAvgs] = (avgCounts[shortAvgs] || 0) + 1;
+                        if (s.pnl !== undefined) {
+                            const pnlVal = Number(s.pnl);
+                            pnlList.push(pnlVal);
+                            if (pnlVal > 0) profitableCloses += 1;
+                            else if (pnlVal < 0) losingCloses += 1;
+                        }
+                    }
+                });
+
+                const probs = {};
+                const keys = Object.keys(avgCounts).map(Number);
+                const maxC = keys.length > 0 ? Math.max(...keys) : 0;
+                for (let i = 0; i <= maxC; i++) {
+                    const freq = avgCounts[i] || 0;
+                    let totalReached = 0;
+                    for (let k = i; k <= maxC; k++) totalReached += (avgCounts[k] || 0);
+                    const prob = totalReached > 0 ? (freq / totalReached) * 100 : 0;
+                    probs[i] = { prob: Number(prob.toFixed(1)), count: freq };
+                }
+
                 const totalPnl = pnlList.reduce((a, b) => a + b, 0);
-                const maxPnl = Math.max(...pnlList);
-                const minPnl = Math.min(...pnlList);
-                const avgPnl = totalPnl / pnlList.length;
+                return {
+                    probabilities: probs,
+                    analytics_stats: {
+                        total_pnl: Number(totalPnl.toFixed(2)),
+                        avg_pnl: Number((pnlList.length ? totalPnl / pnlList.length : 0).toFixed(2)),
+                        max_pnl: Number((pnlList.length ? Math.max(...pnlList) : 0).toFixed(2)),
+                        min_pnl: Number((pnlList.length ? Math.min(...pnlList) : 0).toFixed(2)),
+                        total_positions: pnlList.length,
+                        profitable_closes: profitableCloses,
+                        losing_closes: losingCloses
+                    }
+                };
+            };
+
+            const renderSection = (key, probs, stats) => {
+                const barsContainer = document.getElementById(`analytics-bars-container-${key}`);
+                const analyticsTotalCount = document.getElementById(`analytics-total-count-${key}`);
+                if (!barsContainer) return;
 
                 const setStat = (id, val, colorize = true) => {
                     const el = document.getElementById(id);
-                    el.innerText = val.toFixed(2);
+                    if (!el) return;
+                    el.innerText = (val || 0).toFixed(2);
                     if (colorize) {
                         el.className = 'stat-value' + (val >= 0 ? ' profit' : ' loss');
                     }
                 };
 
-                setStat('stats-total-pnl', totalPnl);
-                setStat('stats-avg-pnl', avgPnl);
-                setStat('stats-max-pnl', maxPnl);
-                setStat('stats-min-pnl', minPnl);
-            }
+                setStat(`stats-total-pnl-${key}`, stats.total_pnl);
+                setStat(`stats-avg-pnl-${key}`, stats.avg_pnl);
+                setStat(`stats-max-pnl-${key}`, stats.max_pnl);
+                setStat(`stats-min-pnl-${key}`, stats.min_pnl);
+                const profitableEl = document.getElementById(`stats-profitable-closes-${key}`);
+                const losingEl = document.getElementById(`stats-losing-closes-${key}`);
+                if (profitableEl) profitableEl.innerText = String(stats.profitable_closes || 0);
+                if (losingEl) losingEl.innerText = String(stats.losing_closes || 0);
 
-            barsContainer.innerHTML = '';
-            const allKeys = Object.keys(avgCounts).map(Number);
-            const maxCounts = allKeys.length > 0 ? Math.max(...allKeys, 5) : 5;
-            const totalPositions = Object.values(avgCounts).reduce((a, b) => a + b, 0);
-            
-            if (analyticsTotalCount) {
-                analyticsTotalCount.innerText = `| ŁĄCZNIE: ${totalPositions}`;
-            }
+                barsContainer.innerHTML = '';
+                const allKeys = Object.keys(probs).map(Number);
+                const maxCounts = allKeys.length > 0 ? Math.max(...allKeys, 5) : 5;
 
-            // Calculate conditional completion for each step
-            for (let i = 0; i <= maxCounts; i++) {
-                const freq = avgCounts[i] || 0;
-                
-                // Calculate how many positions reached this level (i and above)
-                let totalReachedLevel = 0;
-                for (let k = i; k <= maxCounts; k++) {
-                    totalReachedLevel += (avgCounts[k] || 0);
+                if (analyticsTotalCount) {
+                    analyticsTotalCount.innerText = `| TOTAL: ${stats.total_positions || 0}`;
                 }
 
-                // Probability: Out of those who reached i, how many closed at i?
-                const prob = totalReachedLevel > 0 ? (freq / totalReachedLevel * 100) : 0;
-                const heightPct = prob; 
-                
-                const barHtml = `
-                    <div class="bar-container">
-                        <div class="bar-prob">${prob.toFixed(1)}%</div>
-                        <div class="bar" style="height: ${Math.max(heightPct, 2)}%;">
-                            <div class="bar-value">${freq}</div>
+                for (let i = 0; i <= maxCounts; i++) {
+                    const item = probs[i] || { prob: 0, count: 0 };
+                    const prob = Number(item.prob || 0);
+                    const freq = Number(item.count || 0);
+                    const barHtml = `
+                        <div class="bar-container">
+                            <div class="bar-prob">${prob.toFixed(1)}%</div>
+                            <div class="bar" style="height: ${Math.max(prob, 2)}%;">
+                                <div class="bar-value">${freq}</div>
+                            </div>
+                            <div class="bar-label">${i} avg.</div>
                         </div>
-                        <div class="bar-label">${i} uśr.</div>
-                    </div>
-                `;
-                barsContainer.innerHTML += barHtml;
-            }
+                    `;
+                    barsContainer.innerHTML += barHtml;
+                }
+            };
+
+            const l1Computed = buildAnalyticsFromSignals(data.signals || []);
+            const l1Probs = data.probabilities || {};
+            const l1Stats = {
+                ...(data.analytics_stats || {}),
+                profitable_closes: l1Computed.analytics_stats.profitable_closes,
+                losing_closes: l1Computed.analytics_stats.losing_closes
+            };
+            renderSection('l1', l1Probs, l1Stats);
+
+            const l2Computed = buildAnalyticsFromSignals(data.l2_signals || []);
+            renderSection('l2', l2Computed.probabilities, l2Computed.analytics_stats);
         }
 
         btnOpenAnalytics.addEventListener('click', () => {
@@ -707,9 +961,40 @@ async def get_dashboard():
             } else {
                 sCard.classList.remove('active');
             }
+
+            // Update Modal Fields
+            const mLongAvgs = document.getElementById('modal-long-avgs');
+            const mShortAvgs = document.getElementById('modal-short-avgs');
+            const mLongPnl = document.getElementById('modal-long-pnl');
+            const mShortPnl = document.getElementById('modal-short-pnl');
+
+            if (mLongAvgs) {
+                mLongAvgs.innerText = `${data.long_count} (${data.prob_long_inv.toFixed(1)}%)`;
+                mLongAvgs.style.color = data.current_long_active ? '#58a6ff' : '#c9d1d9';
+            }
+            if (mShortAvgs) {
+                mShortAvgs.innerText = `${data.short_count} (${data.prob_short_inv.toFixed(1)}%)`;
+                mShortAvgs.style.color = data.current_short_active ? '#e3b341' : '#c9d1d9';
+            }
+            if (mLongPnl) {
+                mLongPnl.innerText = `${Math.abs(data.long_pnl_pct).toFixed(2)}%`;
+                mLongPnl.className = data.current_long_active ? (data.long_pnl >= 0 ? 'pnl-plus' : 'pnl-minus') : '';
+            }
+            if (mShortPnl) {
+                mShortPnl.innerText = `${Math.abs(data.short_pnl_pct).toFixed(2)}%`;
+                mShortPnl.className = data.current_short_active ? (data.short_pnl >= 0 ? 'pnl-plus' : 'pnl-minus') : '';
+            }
+
+            const resLongEl = document.getElementById('trigger-result-long');
+            const resShortEl = document.getElementById('trigger-result-short');
+            if (resLongEl) resLongEl.innerText = (data.trigger_res_long || 0).toFixed(2) + '%';
+            if (resShortEl) resShortEl.innerText = (data.trigger_res_short || 0).toFixed(2) + '%';
         }
 
         async function simulateStrategy() {
+            if (isSimulating) return;
+            isSimulating = true;
+
             const period = parseInt(trendPeriodInput.value) || 100;
             const factor = parseFloat(weightFactorInput.value) || 0.87;
             const multiplier = parseFloat(multiplierInput.value) || 1.0;
@@ -717,11 +1002,18 @@ async def get_dashboard():
             const iQty = parseFloat(initialQtyInput.value) || 1.0;
             const cSize = parseFloat(contractSizeInput.value) || 0.01;
 
+            const mlProb = document.getElementById('mult-long-prob').value;
+            const msProb = document.getElementById('mult-short-prob').value;
+            const mlPnl = document.getElementById('mult-long-pnl').value;
+            const msPnl = document.getElementById('mult-short-pnl').value;
+            const mrLong = document.getElementById('mult-res-long').value;
+            const mrShort = document.getElementById('mult-res-short').value;
+
             try {
-                const res = await fetch(`/api/strategy/simulate?period=${period}&weight_factor=${factor}&multiplier=${multiplier}&min_profit_pct=${minProfit}&initial_qty=${iQty}&contract_size=${cSize}`);
+                const res = await fetch(`/api/strategy/simulate?period=${period}&weight_factor=${factor}&multiplier=${multiplier}&min_profit_pct=${minProfit}&initial_qty=${iQty}&contract_size=${cSize}&m_l_prob=${mlProb}&m_s_prob=${msProb}&m_l_pnl=${mlPnl}&m_s_pnl=${msPnl}&m_res_l=${mrLong}&m_res_s=${mrShort}`);
                 const data = await res.json();
                 
-                updateAnalytics(data.signals);
+                updateAnalytics(data);
                 updatePositionHUD(data);
 
                 if (data.renko && data.renko.length > 0) {
@@ -731,6 +1023,36 @@ async def get_dashboard():
                 // Handle Historical and Active Lines (Segmented)
                 // hist series are pre-initialized in initChart
 
+                // Update Renko Boundary Lines (Short segments)
+                const candleData = candleSeries.data();
+                if (candleData.length >= 2 && data.renko_upper && data.renko_lower) {
+                    const last = candleData[candleData.length - 1];
+                    const prev = candleData[candleData.length - 2];
+                    
+                    renkoUpperLine.setData([
+                        { time: prev.time, value: data.renko_upper },
+                        { time: last.time, value: data.renko_upper }
+                    ]);
+                    renkoLowerLine.setData([
+                        { time: prev.time, value: data.renko_lower },
+                        { time: last.time, value: data.renko_lower }
+                    ]);
+
+                    if (data.long_trigger_level) {
+                        longTriggerLine.setData([
+                            { time: prev.time, value: data.long_trigger_level },
+                            { time: last.time, value: data.long_trigger_level }
+                        ]);
+                    }
+                    if (data.short_trigger_level) {
+                        shortTriggerLine.setData([
+                            { time: prev.time, value: data.short_trigger_level },
+                            { time: last.time, value: data.short_trigger_level }
+                        ]);
+                    }
+                }
+
+                // Handle L1 History Lines
                 if (data.history_lines && data.history_lines.length > 0) {
                     const lAvg = [], lTp = [], sAvg = [], sTp = [];
                     data.history_lines.forEach(h => {
@@ -750,49 +1072,84 @@ async def get_dashboard():
                     histShortTargetSeries.setData(sTp);
                 }
 
-                if (!data.signals || data.signals.length === 0) {
-                    candleSeries.setMarkers([]);
-                    return;
+                // Handle L2 History Lines
+                if (data.l2_history_lines && data.l2_history_lines.length > 0) {
+                    const lAvg2 = [], lTp2 = [], sAvg2 = [], sTp2 = [];
+                    data.l2_history_lines.forEach(h => {
+                        if (h.type === 'long') {
+                            if (h.avg) lAvg2.push({ time: h.time, value: h.avg });
+                            if (h.target) lTp2.push({ time: h.time, value: h.target });
+                        } else {
+                            if (h.avg) sAvg2.push({ time: h.time, value: h.avg });
+                            if (h.target) sTp2.push({ time: h.time, value: h.target });
+                        }
+                    });
+                    if (histL2LongAvgSeries) histL2LongAvgSeries.setData(lAvg2);
+                    if (histL2LongTargetSeries) histL2LongTargetSeries.setData(lTp2);
+                    if (histL2ShortAvgSeries) histL2ShortAvgSeries.setData(sAvg2);
+                    if (histL2ShortTargetSeries) histL2ShortTargetSeries.setData(sTp2);
                 }
 
-                const markerConfig = {
-                    open_long:     { position: 'belowBar', color: '#00ffcc', shape: 'arrowUp',   text: 'OPEN LONG' },
-                    average_long:  { position: 'belowBar', color: '#00ccff', shape: 'circle',    text: 'AVG LONG' },
-                    close_long:    { position: 'aboveBar', color: '#ff00ff', shape: 'arrowDown', text: 'CLOSE LONG' },
-                    open_short:    { position: 'aboveBar', color: '#ff3300', shape: 'arrowDown', text: 'OPEN SHORT' },
-                    average_short: { position: 'aboveBar', color: '#ffcc00', shape: 'circle',    text: 'AVG SHORT' },
-                    close_short:   { position: 'belowBar', color: '#ff00ff', shape: 'arrowUp',   text: 'CLOSE SHORT' },
+                // Combined Markers Logic
+                let allMarkers = [];
+                
+                const mConfig1 = {
+                    open_long:     { position: 'belowBar', color: '#00ffcc', shape: 'arrowUp',   text: 'L1 OPEN' },
+                    average_long:  { position: 'belowBar', color: '#00ccff', shape: 'circle',    text: 'L1 AVG' },
+                    close_long:    { position: 'aboveBar', color: '#ff00ff', shape: 'arrowDown', text: 'L1 CLOSE' },
+                    open_short:    { position: 'aboveBar', color: '#ff3300', shape: 'arrowDown', text: 'L1 OPEN' },
+                    average_short: { position: 'aboveBar', color: '#ffcc00', shape: 'circle',    text: 'L1 AVG' },
+                    close_short:   { position: 'belowBar', color: '#ff00ff', shape: 'arrowUp',   text: 'L1 CLOSE' },
                 };
 
-                const markers = data.signals
-                    .filter(s => markerConfig[s.signal])
-                    .map(s => {
-                        const m = markerConfig[s.signal];
-                        let label = m.text;
-                        if (s.signal.includes('average')) {
-                            label = `AVG (${s.counter})`;
-                        }
-                        return { 
-                            time: s.time, 
-                            position: m.position, 
-                            color: m.color, 
-                            shape: m.shape, 
-                            text: label,
-                            size: 2 // Some browser versions support this, others ignore
-                        };
-                    })
-                    .sort((a, b) => a.time - b.time);
+                const mConfig2 = {
+                    open_long:     { position: 'belowBar', color: '#ffffff', shape: 'arrowUp',   text: 'L2 OPEN' },
+                    average_long:  { position: 'belowBar', color: '#ffffff', shape: 'circle',    text: 'L2 AVG' },
+                    close_long:    { position: 'aboveBar', color: '#ffffff', shape: 'arrowDown', text: 'L2 CLOSE' },
+                    open_short:    { position: 'aboveBar', color: '#ffffff', shape: 'arrowDown', text: 'L2 OPEN' },
+                    average_short: { position: 'aboveBar', color: '#ffffff', shape: 'circle',    text: 'L2 AVG' },
+                    close_short:   { position: 'belowBar', color: '#ffffff', shape: 'arrowUp',   text: 'L2 CLOSE' },
+                };
 
-                console.log(`Strategy: setting ${markers.length} markers`);
-                try {
-                    candleSeries.setMarkers(markers);
-                    console.log("setMarkers OK");
-                    // Do NOT call fitContent() here to preserve user's zoom/scroll
-                } catch(markerErr) {
-                    console.error("setMarkers FAILED:", markerErr);
+                if (strategy1Visible && data.signals && data.signals.length > 0) {
+                    data.signals.forEach(s => {
+                        const m = mConfig1[s.signal];
+                        if (m) {
+                            allMarkers.push({
+                                time: Number(s.time),
+                                position: m.position,
+                                color: m.color,
+                                shape: m.shape,
+                                text: m.text
+                            });
+                        }
+                    });
                 }
+
+                if (strategy2Visible && data.l2_signals && data.l2_signals.length > 0) {
+                    data.l2_signals.forEach(s => {
+                        const m = mConfig2[s.signal];
+                        if (m) {
+                            allMarkers.push({
+                                // Marker time must match an existing candle timestamp
+                                time: Number(s.time),
+                                position: m.position,
+                                color: m.color,
+                                shape: m.shape,
+                                text: m.text
+                            });
+                        }
+                    });
+                }
+
+                // Final marker update - only one call per tick
+                const sortedMarkers = allMarkers.sort((a, b) => a.time - b.time);
+                console.log(`Total markers to set: ${sortedMarkers.length}`);
+                candleSeries.setMarkers(sortedMarkers);
             } catch (e) {
                 console.error("Strategy simulate error:", e);
+            } finally {
+                isSimulating = false;
             }
         }
 
@@ -843,6 +1200,57 @@ async def get_dashboard():
             histLongTargetSeries = mainChart.addLineSeries(lineOptions('#26a69a', 'TP L', true));
             histShortAvgSeries = mainChart.addLineSeries(lineOptions('#e3b341', 'AVG S'));
             histShortTargetSeries = mainChart.addLineSeries(lineOptions('#f85149', 'TP S', true));
+
+            // Strategy L2 Lines (Dashed/Dotted)
+            histL2LongAvgSeries = mainChart.addLineSeries({
+                color: 'rgba(0, 255, 204, 0.6)', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed,
+                priceLineVisible: false, lastValueVisible: true, title: 'AVG L2'
+            });
+            histL2LongTargetSeries = mainChart.addLineSeries({
+                color: 'rgba(0, 255, 204, 0.4)', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted,
+                priceLineVisible: false, lastValueVisible: true, title: 'TP L2'
+            });
+            histL2ShortAvgSeries = mainChart.addLineSeries({
+                color: 'rgba(255, 51, 0, 0.6)', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed,
+                priceLineVisible: false, lastValueVisible: true, title: 'AVG L2'
+            });
+            histL2ShortTargetSeries = mainChart.addLineSeries({
+                color: 'rgba(255, 51, 0, 0.4)', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted,
+                priceLineVisible: false, lastValueVisible: true, title: 'TP L2'
+            });
+
+            // Renko Boundary Lines
+            renkoUpperLine = mainChart.addLineSeries({
+                color: 'rgba(88, 166, 255, 0.9)',
+                lineWidth: 3,
+                lineStyle: LightweightCharts.LineStyle.Solid,
+                priceLineVisible: false,
+                lastValueVisible: false,
+            });
+            renkoLowerLine = mainChart.addLineSeries({
+                color: 'rgba(248, 81, 73, 0.9)',
+                lineWidth: 3,
+                lineStyle: LightweightCharts.LineStyle.Solid,
+                priceLineVisible: false,
+                lastValueVisible: false,
+            });
+
+            longTriggerLine = mainChart.addLineSeries({
+                color: '#00ffcc',
+                lineWidth: 3,
+                lineStyle: LightweightCharts.LineStyle.Solid,
+                priceLineVisible: false,
+                lastValueVisible: false,
+                title: 'LONG TRIGGER',
+            });
+            shortTriggerLine = mainChart.addLineSeries({
+                color: '#ff3300',
+                lineWidth: 3,
+                lineStyle: LightweightCharts.LineStyle.Solid,
+                priceLineVisible: false,
+                lastValueVisible: false,
+                title: 'SHORT TRIGGER',
+            });
 
             // 3. Renko Bricks (Top-most semi-transparent)
             renkoSeries = mainChart.addCandlestickSeries({
@@ -941,14 +1349,14 @@ async def get_dashboard():
                 } catch (e) {}
             }, 5000);
 
-            // 3. Polling Strategy Simulation (1 second)
+            // 3. Polling Strategy Simulation (throttled to reduce backend pressure)
             setInterval(async () => {
                 try {
                     await simulateStrategy();
                 } catch (e) {
                     console.error("Strategy simulation polling error:", e);
                 }
-            }, 1000);
+            }, 3000);
         }
 
         if (document.readyState === 'complete') initChart();

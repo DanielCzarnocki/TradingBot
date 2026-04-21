@@ -40,6 +40,13 @@ def update_settings(payload: SettingsUpdate, db: Session = Depends(get_settings_
     if "min_profit" in s:     ss.min_profit_pct = float(s["min_profit"])
     if "initial_qty" in s:    ss.initial_qty = float(s["initial_qty"])
     if "contract_size" in s:  ss.contract_size = float(s["contract_size"])
+    
+    if "mult_long_prob" in s:  ss.mult_long_prob = float(s["mult_long_prob"])
+    if "mult_short_prob" in s: ss.mult_short_prob = float(s["mult_short_prob"])
+    if "mult_long_pnl" in s:   ss.mult_long_pnl = float(s["mult_long_pnl"])
+    if "mult_short_pnl" in s:  ss.mult_short_pnl = float(s["mult_short_pnl"])
+    if "mult_res_long" in s:   ss.mult_res_long = float(s["mult_res_long"])
+    if "mult_res_short" in s:  ss.mult_res_short = float(s["mult_res_short"])
 
     db.commit()
     return {"status": "success"}
