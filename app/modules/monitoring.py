@@ -236,7 +236,7 @@ class RestPollingMonitor:
         state.update_status("Live", "Polling REST API")
 
         # Import here to avoid circular imports at module load time
-        from app.modules.strategy import run_simulation
+        from app.modules.strategy import run_simulation, simulate_lock
 
         while self.is_running:
             try:
@@ -252,7 +252,11 @@ class RestPollingMonitor:
                         db_market   = SessionLocal()
                         db_settings = SessionLocalSettings()
                         try:
-                            run_simulation(db_market, db_settings)
+                            if simulate_lock.acquire(blocking=False):
+                                try:
+                                    run_simulation(db_market, db_settings)
+                                finally:
+                                    simulate_lock.release()
                         except Exception as sim_err:
                             logger.error(f"Strategy sim error: {sim_err}")
                         finally:

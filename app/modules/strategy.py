@@ -8,7 +8,7 @@ import threading
 from app.database.connection import get_db
 from app.database.settings_connection import get_settings_db
 from app.database.models import Candle
-from app.database.settings_models import StrategySettings
+from app.database.settings_models import AppSetting, StrategySettings
 
 router = APIRouter(prefix="/api/strategy")
 
@@ -68,6 +68,8 @@ class StrategyCache:
         self.renko_bricks = []
         self.probabilities = {}
         self.analytics_stats = {"total_pnl": 0, "avg_pnl": 0, "max_pnl": 0, "min_pnl": 0, "total_positions": 0}
+        self.max_underwater_pnl = 0.0
+        self.l2_max_underwater_pnl = 0.0
         self.trigger_history = []
 
         # Strategy L2 State
@@ -157,12 +159,24 @@ def _load_settings(db_settings: Session) -> StrategySettings:
     return ss
 
 
+def _load_float_app_setting(db_settings: Session, key: str, default: float) -> float:
+    rec = db_settings.query(AppSetting).filter(AppSetting.key == key).first()
+    if not rec or rec.value is None:
+        return default
+    try:
+        return float(rec.value)
+    except Exception:
+        return default
+
+
 def run_strategy_l2(
     c: Candle,
     t: int,
     l1_sig: str = None,
     l1_data: dict = None,
     ss: StrategySettings = None,
+    avg_base_multiplier: float = 1.0,
+    avg_step_multiplier: float = 1.0,
     record_history: bool = False,
 ):
     """
@@ -175,6 +189,9 @@ def run_strategy_l2(
     C_SIZE = ss.contract_size
     INITIAL_QTY = ss.initial_qty
 
+    base_mult = max(0.01, float(avg_base_multiplier))
+    step_mult = max(0.01, float(avg_step_multiplier))
+
     def _try_fire_long_average():
         if (
             mem_cache.l2_long_active
@@ -183,14 +200,16 @@ def run_strategy_l2(
             and c.close >= mem_cache.l2_long_pending_trigger
         ):
             total_weight = mem_cache.l2_long_waiting_room
-            mem_cache.l2_long_entries.append((c.close, INITIAL_QTY * total_weight))
+            avg_index = max(1, len(mem_cache.l2_long_entries))  # 1 for first L2 average, 2 for second...
+            qty_mult = base_mult * (step_mult ** (avg_index - 1))
+            mem_cache.l2_long_entries.append((c.close, INITIAL_QTY * total_weight * qty_mult))
             mem_cache.l2_long_waiting_room = 0.0
             mem_cache.l2_long_pending_trigger = None
 
             w_a = sum(p * q for p, q in mem_cache.l2_long_entries) / sum(q for _, q in mem_cache.l2_long_entries)
             mem_cache.l2_long_target = w_a * (1 + ss.min_profit_pct / 100)
             mem_cache.l2_signals.append(
-                {"time": t, "signal": "average_long", "price": round(c.close, 4), "weight": total_weight}
+                {"time": t, "signal": "average_long", "price": round(c.close, 4), "weight": total_weight, "multiplier": round(qty_mult, 6)}
             )
 
     def _try_fire_short_average():
@@ -201,14 +220,16 @@ def run_strategy_l2(
             and c.close <= mem_cache.l2_short_pending_trigger
         ):
             total_weight = mem_cache.l2_short_waiting_room
-            mem_cache.l2_short_entries.append((c.close, INITIAL_QTY * total_weight))
+            avg_index = max(1, len(mem_cache.l2_short_entries))  # 1 for first L2 average, 2 for second...
+            qty_mult = base_mult * (step_mult ** (avg_index - 1))
+            mem_cache.l2_short_entries.append((c.close, INITIAL_QTY * total_weight * qty_mult))
             mem_cache.l2_short_waiting_room = 0.0
             mem_cache.l2_short_pending_trigger = None
 
             w_a = sum(p * q for p, q in mem_cache.l2_short_entries) / sum(q for _, q in mem_cache.l2_short_entries)
             mem_cache.l2_short_target = w_a * (1 - ss.min_profit_pct / 100)
             mem_cache.l2_signals.append(
-                {"time": t, "signal": "average_short", "price": round(c.close, 4), "weight": total_weight}
+                {"time": t, "signal": "average_short", "price": round(c.close, 4), "weight": total_weight, "multiplier": round(qty_mult, 6)}
             )
 
     # --- LONG L2 ---
@@ -289,6 +310,10 @@ def run_simulation(db_market: Session, db_settings: Session):
     Updates mem_cache in-place.
     """
     ss = _load_settings(db_settings)
+    L2_AVG_MULT = _load_float_app_setting(db_settings, "l2_avg_multiplier", 1.0)
+    L2_AVG_STEP_MULT = _load_float_app_setting(db_settings, "l2_avg_step_multiplier", 1.0)
+    L2_SL_ENABLED = _load_float_app_setting(db_settings, "l2_sl_enabled", 0.0) >= 0.5
+    L2_SL_VALUE = abs(_load_float_app_setting(db_settings, "l2_sl_value", 100.0))
 
     current_hash = _hash({
         "p": ss.period, "w": ss.weight_factor, "m": ss.multiplier,
@@ -296,6 +321,10 @@ def run_simulation(db_market: Session, db_settings: Session):
         "mlpr": ss.mult_long_prob, "mspr": ss.mult_short_prob,
         "mlpn": ss.mult_long_pnl, "mspn": ss.mult_short_pnl,
         "mrl": ss.mult_res_long, "mrs": ss.mult_res_short,
+        "l2am": round(L2_AVG_MULT, 6),
+        "l2asm": round(L2_AVG_STEP_MULT, 6),
+        "l2sl_en": int(L2_SL_ENABLED),
+        "l2sl_v": round(L2_SL_VALUE, 6),
     })
 
     # Reset cache if settings have changed
@@ -364,7 +393,7 @@ def run_simulation(db_market: Session, db_settings: Session):
                         w_a = sum(p * q for p, q in mem_cache.long_entries) / sum(q for _, q in mem_cache.long_entries)
                         pnl = (c.close - w_a) * sum(q for _, q in mem_cache.long_entries) * C_SIZE
                         mem_cache.signals.append({"time": t, "signal": "close_long", "price": round(c.close, 4), "pnl": round(pnl, 4)})
-                        run_strategy_l2(c, t, "close_long", {}, ss)
+                        run_strategy_l2(c, t, "close_long", {}, ss, L2_AVG_MULT, L2_AVG_STEP_MULT)
                         mem_cache.long_active, mem_cache.long_entries, mem_cache.long_target, mem_cache.long_min_price, mem_cache.long_count, mem_cache.long_avg_events, mem_cache.long_flag = False, [], None, None, 0, 0, False
                     elif check_average_long(pd, cd, mem_cache.long_flag, mem_cache.long_count, mem_cache.long_active):
                         mem_cache.long_avg_events += 1
@@ -379,7 +408,7 @@ def run_simulation(db_market: Session, db_settings: Session):
                         l1_prob_val = mem_cache.probabilities.get(mem_cache.long_avg_events, {}).get("prob", 0)
                         l1_res_long = ((100 - l1_prob_val) * ss.mult_long_prob + abs(round((c.close / w_a - 1) * 100, 2)) * ss.mult_long_pnl) * ss.mult_res_long
                         l1_trigger_level = mem_cache.curr_high * (1 + l1_res_long / 100)
-                        run_strategy_l2(c, t, "average_long", {"weight": mem_cache.long_count, "long_trigger": l1_trigger_level}, ss)
+                        run_strategy_l2(c, t, "average_long", {"weight": mem_cache.long_count, "long_trigger": l1_trigger_level}, ss, L2_AVG_MULT, L2_AVG_STEP_MULT)
 
                 elif check_open_long(pd, cd, mem_cache.long_active):
                     mem_cache.long_active, mem_cache.long_entries = True, [(c.close, INITIAL_QTY)]
@@ -387,7 +416,7 @@ def run_simulation(db_market: Session, db_settings: Session):
                     mem_cache.long_target = c.close * (1 + ss.min_profit_pct / 100)
                     l1_sig_data = {"time": t, "signal": "open_long", "price": round(c.close, 4), "min_price": round(mem_cache.long_min_price, 4), "target": round(mem_cache.long_target, 4)}
                     mem_cache.signals.append(l1_sig_data)
-                    run_strategy_l2(c, t, "open_long", {}, ss)
+                    run_strategy_l2(c, t, "open_long", {}, ss, L2_AVG_MULT, L2_AVG_STEP_MULT)
 
                 # --- SHORT ---
                 if mem_cache.short_active:
@@ -395,7 +424,7 @@ def run_simulation(db_market: Session, db_settings: Session):
                         w_a = sum(p * q for p, q in mem_cache.short_entries) / sum(q for _, q in mem_cache.short_entries)
                         pnl = (w_a - c.close) * sum(q for _, q in mem_cache.short_entries) * C_SIZE
                         mem_cache.signals.append({"time": t, "signal": "close_short", "price": round(c.close, 4), "pnl": round(pnl, 4)})
-                        run_strategy_l2(c, t, "close_short", {}, ss)
+                        run_strategy_l2(c, t, "close_short", {}, ss, L2_AVG_MULT, L2_AVG_STEP_MULT)
                         mem_cache.short_active, mem_cache.short_entries, mem_cache.short_target, mem_cache.short_max_price, mem_cache.short_count, mem_cache.short_avg_events, mem_cache.short_flag = False, [], None, None, 0, 0, False
                     elif check_average_short(pd, cd, mem_cache.short_flag, mem_cache.short_count, mem_cache.short_active):
                         mem_cache.short_avg_events += 1
@@ -410,7 +439,7 @@ def run_simulation(db_market: Session, db_settings: Session):
                         l1_prob_val = mem_cache.probabilities.get(mem_cache.short_avg_events, {}).get("prob", 0)
                         l1_res_short = ((100 - l1_prob_val) * ss.mult_short_prob + abs(round((w_a / c.close - 1) * 100, 2)) * ss.mult_short_pnl) * ss.mult_res_short
                         l1_trigger_level = mem_cache.curr_low * (1 - l1_res_short / 100)
-                        run_strategy_l2(c, t, "average_short", {"weight": mem_cache.short_count, "short_trigger": l1_trigger_level}, ss)
+                        run_strategy_l2(c, t, "average_short", {"weight": mem_cache.short_count, "short_trigger": l1_trigger_level}, ss, L2_AVG_MULT, L2_AVG_STEP_MULT)
 
                 elif check_open_short(pd, cd, mem_cache.short_active):
                     mem_cache.short_active, mem_cache.short_entries = True, [(c.close, INITIAL_QTY)]
@@ -418,7 +447,7 @@ def run_simulation(db_market: Session, db_settings: Session):
                     mem_cache.short_target = c.close * (1 - ss.min_profit_pct / 100)
                     l1_sig_data = {"time": t, "signal": "open_short", "price": round(c.close, 4), "max_price": round(mem_cache.short_max_price, 4), "target": round(mem_cache.short_target, 4)}
                     mem_cache.signals.append(l1_sig_data)
-                    run_strategy_l2(c, t, "open_short", {}, ss)
+                    run_strategy_l2(c, t, "open_short", {}, ss, L2_AVG_MULT, L2_AVG_STEP_MULT)
 
                 # --- Averaging counters ---
                 if mem_cache.long_active and cd == -1:
@@ -439,7 +468,90 @@ def run_simulation(db_market: Session, db_settings: Session):
         is_recent = mem_cache.total_processed > 123000
 
         # Keep checking pending L2 triggers on every candle until hit or position close.
-        run_strategy_l2(c, t_now, None, None, ss, record_history=False)
+        run_strategy_l2(c, t_now, None, None, ss, L2_AVG_MULT, L2_AVG_STEP_MULT, record_history=False)
+
+        # Track worst (most negative) floating PnL seen during any open position.
+        if mem_cache.long_active and mem_cache.long_entries:
+            long_qty = sum(q for _, q in mem_cache.long_entries)
+            if long_qty > 0:
+                long_avg = sum(p * q for p, q in mem_cache.long_entries) / long_qty
+                long_pnl = (c.close - long_avg) * long_qty * C_SIZE
+                mem_cache.max_underwater_pnl = min(mem_cache.max_underwater_pnl, long_pnl)
+        if mem_cache.short_active and mem_cache.short_entries:
+            short_qty = sum(q for _, q in mem_cache.short_entries)
+            if short_qty > 0:
+                short_avg = sum(p * q for p, q in mem_cache.short_entries) / short_qty
+                short_pnl = (short_avg - c.close) * short_qty * C_SIZE
+                mem_cache.max_underwater_pnl = min(mem_cache.max_underwater_pnl, short_pnl)
+
+        l2_long_pnl = None
+        l2_short_pnl = None
+        if mem_cache.l2_long_active and mem_cache.l2_long_entries:
+            l2_long_qty = sum(q for _, q in mem_cache.l2_long_entries)
+            if l2_long_qty > 0:
+                l2_long_avg = sum(p * q for p, q in mem_cache.l2_long_entries) / l2_long_qty
+                l2_long_pnl = (c.close - l2_long_avg) * l2_long_qty * C_SIZE
+                mem_cache.l2_max_underwater_pnl = min(mem_cache.l2_max_underwater_pnl, l2_long_pnl)
+        if mem_cache.l2_short_active and mem_cache.l2_short_entries:
+            l2_short_qty = sum(q for _, q in mem_cache.l2_short_entries)
+            if l2_short_qty > 0:
+                l2_short_avg = sum(p * q for p, q in mem_cache.l2_short_entries) / l2_short_qty
+                l2_short_pnl = (l2_short_avg - c.close) * l2_short_qty * C_SIZE
+                mem_cache.l2_max_underwater_pnl = min(mem_cache.l2_max_underwater_pnl, l2_short_pnl)
+
+        # Optional L2 stop-loss: when hit, close both L1 and L2 for the same side.
+        if L2_SL_ENABLED and L2_SL_VALUE > 0:
+            if mem_cache.l2_long_active and l2_long_pnl is not None and l2_long_pnl <= -L2_SL_VALUE:
+                if mem_cache.long_active and mem_cache.long_entries:
+                    l1_qty = sum(q for _, q in mem_cache.long_entries)
+                    if l1_qty > 0:
+                        l1_avg = sum(p * q for p, q in mem_cache.long_entries) / l1_qty
+                        l1_pnl = (c.close - l1_avg) * l1_qty * C_SIZE
+                        mem_cache.signals.append({
+                            "time": t_now,
+                            "signal": "close_long",
+                            "price": round(c.close, 4),
+                            "pnl": round(l1_pnl, 4),
+                            "sl_hit": True,
+                            "sl_value": round(L2_SL_VALUE, 4),
+                            "sl_source": "l2",
+                        })
+                mem_cache.l2_signals.append({
+                    "time": t_now,
+                    "signal": "close_long",
+                    "price": round(c.close, 4),
+                    "pnl": round(l2_long_pnl, 4),
+                    "sl_hit": True,
+                    "sl_value": round(L2_SL_VALUE, 4),
+                })
+                mem_cache.long_active, mem_cache.long_entries, mem_cache.long_target, mem_cache.long_min_price, mem_cache.long_count, mem_cache.long_avg_events, mem_cache.long_flag = False, [], None, None, 0, 0, False
+                mem_cache.l2_long_active, mem_cache.l2_long_entries, mem_cache.l2_long_target, mem_cache.l2_long_waiting_room, mem_cache.l2_long_pending_trigger = False, [], None, 0.0, None
+
+            if mem_cache.l2_short_active and l2_short_pnl is not None and l2_short_pnl <= -L2_SL_VALUE:
+                if mem_cache.short_active and mem_cache.short_entries:
+                    l1_qty = sum(q for _, q in mem_cache.short_entries)
+                    if l1_qty > 0:
+                        l1_avg = sum(p * q for p, q in mem_cache.short_entries) / l1_qty
+                        l1_pnl = (l1_avg - c.close) * l1_qty * C_SIZE
+                        mem_cache.signals.append({
+                            "time": t_now,
+                            "signal": "close_short",
+                            "price": round(c.close, 4),
+                            "pnl": round(l1_pnl, 4),
+                            "sl_hit": True,
+                            "sl_value": round(L2_SL_VALUE, 4),
+                            "sl_source": "l2",
+                        })
+                mem_cache.l2_signals.append({
+                    "time": t_now,
+                    "signal": "close_short",
+                    "price": round(c.close, 4),
+                    "pnl": round(l2_short_pnl, 4),
+                    "sl_hit": True,
+                    "sl_value": round(L2_SL_VALUE, 4),
+                })
+                mem_cache.short_active, mem_cache.short_entries, mem_cache.short_target, mem_cache.short_max_price, mem_cache.short_count, mem_cache.short_avg_events, mem_cache.short_flag = False, [], None, None, 0, 0, False
+                mem_cache.l2_short_active, mem_cache.l2_short_entries, mem_cache.l2_short_target, mem_cache.l2_short_waiting_room, mem_cache.l2_short_pending_trigger = False, [], None, 0.0, None
 
         if is_recent or (mem_cache.total_processed % 15 == 0):
             if mem_cache.direction == 1:
@@ -486,7 +598,7 @@ def run_simulation(db_market: Session, db_settings: Session):
             })
 
             # Record L2 History Lines only during sampling to avoid duplicates
-            run_strategy_l2(c, t_now, None, None, ss, record_history=True)
+            run_strategy_l2(c, t_now, None, None, ss, L2_AVG_MULT, L2_AVG_STEP_MULT, record_history=True)
 
         mem_cache.last_timestamp = c.timestamp
         mem_cache.total_processed += 1
@@ -540,6 +652,10 @@ def simulate_strategy(
     t_q_s = sum(q for _, q in mem_cache.short_entries) if mem_cache.short_entries else 0
     l_avg  = (sum(p * q for p, q in mem_cache.long_entries)  / t_q_l) if t_q_l else None
     s_avg  = (sum(p * q for p, q in mem_cache.short_entries) / t_q_s) if t_q_s else None
+    t_q_l2_l = sum(q for _, q in mem_cache.l2_long_entries) if mem_cache.l2_long_entries else 0
+    t_q_l2_s = sum(q for _, q in mem_cache.l2_short_entries) if mem_cache.l2_short_entries else 0
+    l2_l_avg = (sum(p * q for p, q in mem_cache.l2_long_entries) / t_q_l2_l) if t_q_l2_l else None
+    l2_s_avg = (sum(p * q for p, q in mem_cache.l2_short_entries) / t_q_l2_s) if t_q_l2_s else None
 
     last_candle = db.query(Candle).order_by(desc(Candle.timestamp)).first()
     last_price  = last_candle.close if last_candle else 0
@@ -597,6 +713,8 @@ def simulate_strategy(
         "trigger_res_long":     round(res_long, 2),
         "trigger_res_short":    round(res_short, 2),
         "analytics_stats":      mem_cache.analytics_stats,
+        "max_underwater_pnl":   round(mem_cache.max_underwater_pnl, 4),
+        "l2_max_underwater_pnl": round(mem_cache.l2_max_underwater_pnl, 4),
         "current_long_active":  mem_cache.long_active,
         "current_short_active": mem_cache.short_active,
         "long_avg_price":       round(l_avg, 4) if l_avg else None,
@@ -614,4 +732,14 @@ def simulate_strategy(
         "trigger_history":      mem_cache.trigger_history,
         "l2_signals":           mem_cache.l2_signals,
         "l2_history_lines":     mem_cache.l2_history_lines,
+        "l2_current_long_active":  mem_cache.l2_long_active,
+        "l2_current_short_active": mem_cache.l2_short_active,
+        "l2_long_count":           max(0, len(mem_cache.l2_long_entries) - 1),
+        "l2_short_count":          max(0, len(mem_cache.l2_short_entries) - 1),
+        "l2_long_qty":             round(t_q_l2_l, 4),
+        "l2_short_qty":            round(t_q_l2_s, 4),
+        "l2_long_pnl":             round((last_price - l2_l_avg) * t_q_l2_l * C_SIZE if l2_l_avg else 0, 4),
+        "l2_long_pnl_pct":         round((last_price / l2_l_avg - 1) * 100 if l2_l_avg else 0, 4),
+        "l2_short_pnl":            round((l2_s_avg - last_price) * t_q_l2_s * C_SIZE if l2_s_avg else 0, 4),
+        "l2_short_pnl_pct":        round((l2_s_avg / last_price - 1) * 100 if l2_s_avg and last_price else 0, 4),
     }

@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+﻿from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
 router = APIRouter()
@@ -223,11 +223,79 @@ async def get_dashboard():
         .pnl-plus { color: #3fb950; }
         .pnl-minus { color: #f85149; }
 
+        /* Exchange Position Panel (Top Right) */
+        #exchange-pos-panel {
+            position: absolute;
+            top: 10px; right: 10px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            pointer-events: none;
+            min-width: 250px;
+        }
+        .exchange-card {
+            background: rgba(13, 17, 23, 0.9);
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 10px 12px;
+            backdrop-filter: blur(8px);
+            position: relative;
+        }
+        .exchange-title {
+            font-size: 11px;
+            font-weight: bold;
+            letter-spacing: 0.4px;
+            color: #c9d1d9;
+            margin-bottom: 6px;
+            border-bottom: 1px solid #30363d;
+            padding-bottom: 4px;
+        }
+        .exchange-grid {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 2px 8px;
+            font-size: 10px;
+            color: #8b949e;
+        }
+        .exchange-grid .val {
+            color: #c9d1d9;
+            font-weight: bold;
+            text-align: right;
+        }
+        .exchange-subtitle {
+            font-size: 10px;
+            color: #8b949e;
+            margin: 4px 0;
+        }
+        .exchange-consensus-box {
+            position: absolute;
+            right: 10px;
+            bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 10px;
+            color: #8b949e;
+        }
+        .consensus-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #f85149;
+            opacity: 0.35;
+        }
+        .consensus-dot.ok { background: #3fb950; }
+        .consensus-dot.pulse {
+            opacity: 1;
+            animation: consensusFade 1s linear forwards;
+        }
+
         /* Analytics Panel Styles - Tall & Narrow Histogram */
         #analytics-panel {
             position: absolute;
             top: 50px; left: 10px; right: 10px;
-            height: 420px;
+            height: min(760px, calc(100vh - 70px));
             background: rgba(13, 17, 23, 0.98);
             border: 1px solid #30363d;
             border-radius: 8px;
@@ -261,10 +329,53 @@ async def get_dashboard():
             background: rgba(110, 118, 129, 0.05);
         }
         .analytics-body {
-            flex-grow: 3; padding: 10px 20px;
-            display: flex; align-items: flex-end; gap: 6px;
-            overflow-x: auto;
+            flex-grow: 3;
+            padding: 10px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
             border-right: 1px solid #30363d;
+            min-height: 0;
+        }
+        .analytics-bars-row {
+            flex: 1 1 auto;
+            min-height: 120px;
+            display: flex;
+            align-items: flex-end;
+            gap: 6px;
+            overflow-x: auto;
+            padding: 0 8px;
+        }
+        .analytics-equity-card {
+            flex: 0 0 110px;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            background: rgba(110, 118, 129, 0.06);
+            padding: 6px 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .analytics-equity-title {
+            font-size: 9px;
+            color: #8b949e;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .analytics-equity-svg {
+            width: 100%;
+            height: 70px;
+            display: block;
+            border-radius: 4px;
+            background: rgba(13, 17, 23, 0.55);
+        }
+        .analytics-equity-meta {
+            font-size: 9px;
+            color: #8b949e;
+            line-height: 1.2;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .analytics-stats-sidebar {
             flex: 0 0 240px;
@@ -312,6 +423,11 @@ async def get_dashboard():
         .analytics-close { cursor: pointer; color: #8b949e; font-size: 18px; }
         .analytics-close:hover { color: #f85149; }
 
+        @keyframes consensusFade {
+            from { opacity: 1; }
+            to { opacity: 0.2; }
+        }
+
         @keyframes modalFadeIn {
             from { opacity: 0; transform: translateY(-10px); }
             to { opacity: 1; transform: translateY(0); }
@@ -324,14 +440,16 @@ async def get_dashboard():
         <div class="dropdown">
             <button class="tool-btn dropdown-toggle" id="strategy-btn">Strategia ▼</button>
             <div id="strategy-dropdown" class="dropdown-content">
-                <a id="btn-open-settings">⚙️ Ustawienia strategii</a>
-                <a id="btn-open-pos-settings">📊 Ustawienia pozycji</a>
-                <a id="btn-open-analytics">📈 Analityka</a>
+                <a id="btn-open-settings">Ustawienia strategii</a>
+                <a id="btn-open-pos-settings">Ustawienia pozycji</a>
+                <a id="btn-open-analytics">Analityka</a>
             </div>
         </div>
 
-        <button class="tool-btn active" id="toggle-strat-1" title="Pokaż/Ukryj Strategię 1">👁️ Strat 1</button>
-        <button class="tool-btn active" id="toggle-strat-2" title="Pokaż/Ukryj Strategię 2">👁️ Strat 2</button>
+        <button class="tool-btn active" id="toggle-strat-1" title="Pokaz/Ukryj Strategie 1">Strat 1</button>
+        <button class="tool-btn active" id="toggle-strat-2" title="Pokaz/Ukryj Strategie 2">Strat 2</button>
+        <button class="tool-btn" id="bot-toggle-btn" title="Wlacz/Wylacz BOT">BOT On/Off</button>
+        <button class="tool-btn" id="open-position-btn" title="Test otwierania pozycji">Otwieranie pozycji</button>
 
         <div style="flex-grow: 1;"></div>
         <div id="status-tag" style="font-size: 12px; color: #8b949e;">Live Data Offline (Historical Mode)</div>
@@ -344,15 +462,46 @@ async def get_dashboard():
         <div id="pos-panel">
             <div id="long-pos-card" class="pos-card pos-long">
                 <div class="pos-header"><span class="pos-title">LONG POSITION</span></div>
-                <div class="pos-row"><span>Uśrednienia:</span> <span class="pos-val" id="l-hud-count">0</span></div>
+                <div class="pos-row"><span>UĹ›rednienia:</span> <span class="pos-val" id="l-hud-count">0</span></div>
                 <div class="pos-row"><span>Kontrakty:</span> <span class="pos-val" id="l-hud-qty">0.00</span></div>
                 <div class="pos-pnl" id="l-hud-pnl">$0.00 (0.00%)</div>
             </div>
             <div id="short-pos-card" class="pos-card pos-short">
                 <div class="pos-header"><span class="pos-title">SHORT POSITION</span></div>
-                <div class="pos-row"><span>Uśrednienia:</span> <span class="pos-val" id="s-hud-count">0</span></div>
+                <div class="pos-row"><span>UĹ›rednienia:</span> <span class="pos-val" id="s-hud-count">0</span></div>
                 <div class="pos-row"><span>Kontrakty:</span> <span class="pos-val" id="s-hud-qty">0.00</span></div>
                 <div class="pos-pnl" id="s-hud-pnl">$0.00 (0.00%)</div>
+            </div>
+        </div>
+
+        <div id="exchange-pos-panel">
+            <div class="exchange-card">
+                <div class="exchange-title">EXCHANGE POSITIONS</div>
+                <div class="exchange-subtitle">LONG</div>
+                <div class="exchange-grid">
+                    <span>Size:</span><span class="val" id="ex-long-size">-</span>
+                    <span>Target L2:</span><span class="val" id="ex-long-target">-</span>
+                    <span>Avg Price:</span><span class="val" id="ex-long-avg">-</span>
+                    <span>Unrealized PnL:</span><span class="val" id="ex-long-upnl">-</span>
+                    <span>Unrealized %:</span><span class="val" id="ex-long-upnl-pct">-</span>
+                </div>
+                <div class="exchange-subtitle">SHORT</div>
+                <div class="exchange-grid">
+                    <span>Size:</span><span class="val" id="ex-short-size">-</span>
+                    <span>Target L2:</span><span class="val" id="ex-short-target">-</span>
+                    <span>Avg Price:</span><span class="val" id="ex-short-avg">-</span>
+                    <span>Unrealized PnL:</span><span class="val" id="ex-short-upnl">-</span>
+                    <span>Unrealized %:</span><span class="val" id="ex-short-upnl-pct">-</span>
+                </div>
+                <div class="exchange-subtitle" id="ex-pair-status">Pair: -</div>
+                <div class="exchange-subtitle" id="ex-bot-status">BOT: OFF</div>
+                <div class="exchange-subtitle" id="ex-read-timing-m1">M1 read: - ms</div>
+                <div class="exchange-subtitle" id="ex-read-timing-m2">M2 read: - ms</div>
+                <div class="exchange-subtitle" id="ex-read-timing-m3">M3 read: - ms</div>
+                <div class="exchange-consensus-box">
+                    <span id="ex-consensus-text">Consensus: -</span>
+                    <span id="ex-consensus-dot" class="consensus-dot"></span>
+                </div>
             </div>
         </div>
         
@@ -383,6 +532,10 @@ async def get_dashboard():
                             <div class="stat-item">
                                 <span class="stat-label">Min PNL</span>
                                 <span class="stat-value loss" id="stats-min-pnl-l1">0.00</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Max Minus PNL</span>
+                                <span class="stat-value loss" id="stats-max-underwater-pnl-l1">0.00</span>
                             </div>
                             <div class="stat-item">
                                 <span class="stat-label">Profitable Closes</span>
@@ -417,6 +570,10 @@ async def get_dashboard():
                                 <span class="stat-value loss" id="stats-min-pnl-l2">0.00</span>
                             </div>
                             <div class="stat-item">
+                                <span class="stat-label">Max Minus PNL</span>
+                                <span class="stat-value loss" id="stats-max-underwater-pnl-l2">0.00</span>
+                            </div>
+                            <div class="stat-item">
                                 <span class="stat-label">Profitable Closes</span>
                                 <span class="stat-value" id="stats-profitable-closes-l2">0</span>
                             </div>
@@ -441,23 +598,56 @@ async def get_dashboard():
             <div class="modal-body" style="display: flex; gap: 30px;">
                 <div style="flex: 1;">
                     <div class="form-group">
-                        <label for="trend-period">Szerokość badana (ilość świec high/low)</label>
+                        <label for="trend-period">SzerokoĹ›Ä‡ badana (iloĹ›Ä‡ Ĺ›wiec high/low)</label>
                         <input type="number" id="trend-period" class="form-control" value="100" min="10" max="1000">
                     </div>
                     <div class="form-group">
-                        <label for="weight-factor">Współczynnik wagi (zmniejszanie o)</label>
+                        <label for="weight-factor">WspĂłĹ‚czynnik wagi (zmniejszanie o)</label>
                         <input type="number" id="weight-factor" class="form-control" value="0.87" step="0.01" min="0.1" max="1.0">
                     </div>
                     <div class="form-group">
-                        <label for="multiplier-value">Mnożnik wyniku końcowego</label>
+                        <label for="multiplier-value">MnoĹĽnik wyniku koĹ„cowego</label>
                         <input type="number" id="multiplier-value" class="form-control" value="1.0" step="0.1" min="0.1">
                     </div>
                     <div class="form-group">
-                        <label for="min-profit">Minimalny zysk do zamknięcia (%)</label>
-                        <input type="number" id="min-profit" class="form-control" value="0.2" step="0.05" min="0.01">
+                        <label for="min-profit">Minimalny zysk do zamkniÄ™cia (%)</label>
+                        <input type="number" id="min-profit" class="form-control" value="0.2" step="0.01" min="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label for="l2-avg-multiplier">MnoĹĽnik uĹ›rednieĹ„ L2</label>
+                        <input type="number" id="l2-avg-multiplier" class="form-control" value="1.00" step="0.01" min="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label for="l2-avg-step-multiplier">Dodatkowy mnoĹĽnik uĹ›rednieĹ„ L2</label>
+                        <input type="number" id="l2-avg-step-multiplier" class="form-control" value="1.00" step="0.01" min="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label style="display:flex; align-items:center; gap:8px;">
+                            <input type="checkbox" id="l2-sl-enabled" style="width:auto;">
+                            Stop Loss L2 aktywny
+                        </label>
+                        <input type="number" id="l2-sl-value" class="form-control" value="100" step="1" min="0.01" placeholder="Poziom SL (np. 100)">
+                        <div style="font-size: 10px; color: #8b949e; margin-top: 4px;">
+                            Po przekroczeniu zamyka pozycjÄ™ w L1 i L2 (dla danego kierunku).
+                        </div>
+                    </div>
+                    <div style="margin-top: 18px; margin-bottom: 8px; color: #58a6ff; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">
+                        Limity bezpieczeĹ„stwa bota
+                    </div>
+                    <div class="form-group">
+                        <label for="exec-max-long-qty">Max kontraktĂłw LONG</label>
+                        <input type="number" id="exec-max-long-qty" class="form-control" value="200" step="1" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="exec-max-short-qty">Max kontraktĂłw SHORT</label>
+                        <input type="number" id="exec-max-short-qty" class="form-control" value="200" step="1" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="exec-max-order-delta">Max dokupienie na 1 prĂłbÄ™</label>
+                        <input type="number" id="exec-max-order-delta" class="form-control" value="25" step="1" min="0.001">
                     </div>
                     <div style="margin-top: 20px; padding: 15px; background: #161b22; border-radius: 6px; border: 1px solid #30363d;">
-                        <div style="color: #8b949e; font-size: 12px; margin-bottom: 5px;">Aktualny wynik z <span id="calc-candles-count">100</span> świec:</div>
+                        <div style="color: #8b949e; font-size: 12px; margin-bottom: 5px;">Aktualny wynik z <span id="calc-candles-count">100</span> Ĺ›wiec:</div>
                         <div id="strategy-result" style="font-size: 24px; font-weight: bold; color: #58a6ff;">0.0000</div>
                     </div>
                 </div>
@@ -466,21 +656,21 @@ async def get_dashboard():
                     
                     <!-- Row 1: Probability -->
                     <div class="form-group">
-                        <label>Prawdopodobieństwo (Prob)</label>
+                        <label>PrawdopodobieĹ„stwo (Prob)</label>
                         <div style="display: flex; gap: 10px; margin-top: 5px;">
                             <div style="flex: 1; display: flex; flex-direction: column; gap: 5px;">
                                 <div style="background: #161b22; padding: 8px; border-radius: 4px; border: 1px solid #30363d;">
                                     <div style="font-size: 10px; color: #8b949e;">LONG</div>
                                     <div id="modal-long-avgs" style="font-size: 13px; font-weight: bold; color: #c9d1d9;">0 (0.0%)</div>
                                 </div>
-                                <input type="number" id="mult-long-prob" class="form-control" value="1.0" step="0.1" style="font-size: 11px; padding: 4px;" title="Mnożnik Prob Long">
+                                <input type="number" id="mult-long-prob" class="form-control" value="1.0" step="0.1" style="font-size: 11px; padding: 4px;" title="MnoĹĽnik Prob Long">
                             </div>
                             <div style="flex: 1; display: flex; flex-direction: column; gap: 5px;">
                                 <div style="background: #161b22; padding: 8px; border-radius: 4px; border: 1px solid #30363d;">
                                     <div style="font-size: 10px; color: #8b949e;">SHORT</div>
                                     <div id="modal-short-avgs" style="font-size: 13px; font-weight: bold; color: #c9d1d9;">0 (0.0%)</div>
                                 </div>
-                                <input type="number" id="mult-short-prob" class="form-control" value="1.0" step="0.1" style="font-size: 11px; padding: 4px;" title="Mnożnik Prob Short">
+                                <input type="number" id="mult-short-prob" class="form-control" value="1.0" step="0.1" style="font-size: 11px; padding: 4px;" title="MnoĹĽnik Prob Short">
                             </div>
                         </div>
                     </div>
@@ -494,35 +684,35 @@ async def get_dashboard():
                                     <div style="font-size: 10px; color: #8b949e;">LONG</div>
                                     <div id="modal-long-pnl" style="font-size: 13px; font-weight: bold; color: #c9d1d9;">0.00%</div>
                                 </div>
-                                <input type="number" id="mult-long-pnl" class="form-control" value="1.0" step="0.1" style="font-size: 11px; padding: 4px;" title="Mnożnik PnL Long">
+                                <input type="number" id="mult-long-pnl" class="form-control" value="1.0" step="0.1" style="font-size: 11px; padding: 4px;" title="MnoĹĽnik PnL Long">
                             </div>
                             <div style="flex: 1; display: flex; flex-direction: column; gap: 5px;">
                                 <div style="background: #161b22; padding: 8px; border-radius: 4px; border: 1px solid #30363d;">
                                     <div style="font-size: 10px; color: #8b949e;">SHORT</div>
                                     <div id="modal-short-pnl" style="font-size: 13px; font-weight: bold; color: #c9d1d9;">0.00%</div>
                                 </div>
-                                <input type="number" id="mult-short-pnl" class="form-control" value="1.0" step="0.1" style="font-size: 11px; padding: 4px;" title="Mnożnik PnL Short">
+                                <input type="number" id="mult-short-pnl" class="form-control" value="1.0" step="0.1" style="font-size: 11px; padding: 4px;" title="MnoĹĽnik PnL Short">
                             </div>
                         </div>
                     </div>
 
                     <!-- Row 3: Result -->
                     <div class="form-group">
-                        <label>Wynik Końcowy</label>
+                        <label>Wynik KoĹ„cowy</label>
                         <div style="display: flex; gap: 10px; margin-top: 5px;">
                             <div style="flex: 1; display: flex; flex-direction: column; gap: 5px;">
                                 <div style="background: #161b22; padding: 8px; border-radius: 4px; border: 1px solid #30363d;">
                                     <div style="font-size: 10px; color: #8b949e;">LONG</div>
                                     <div id="trigger-result-long" style="font-size: 15px; font-weight: bold; color: #58a6ff;">0.00%</div>
                                 </div>
-                                <input type="number" id="mult-res-long" class="form-control" value="1.0" step="0.1" style="font-size: 11px; padding: 4px;" title="Mnożnik Wyniku Long">
+                                <input type="number" id="mult-res-long" class="form-control" value="1.0" step="0.001" style="font-size: 11px; padding: 4px;" title="MnoĹĽnik Wyniku Long">
                             </div>
                             <div style="flex: 1; display: flex; flex-direction: column; gap: 5px;">
                                 <div style="background: #161b22; padding: 8px; border-radius: 4px; border: 1px solid #30363d;">
                                     <div style="font-size: 10px; color: #8b949e;">SHORT</div>
                                     <div id="trigger-result-short" style="font-size: 15px; font-weight: bold; color: #e3b341;">0.00%</div>
                                 </div>
-                                <input type="number" id="mult-res-short" class="form-control" value="1.0" step="0.1" style="font-size: 11px; padding: 4px;" title="Mnożnik Wyniku Short">
+                                <input type="number" id="mult-res-short" class="form-control" value="1.0" step="0.001" style="font-size: 11px; padding: 4px;" title="MnoĹĽnik Wyniku Short">
                             </div>
                         </div>
                     </div>
@@ -544,20 +734,49 @@ async def get_dashboard():
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label for="initial-qty">Ilość kontraktów początkowych</label>
+                    <label for="initial-qty">IloĹ›Ä‡ kontraktĂłw poczÄ…tkowych</label>
                     <input type="number" id="initial-qty" class="form-control" value="1.0" step="0.1" min="0.001">
                 </div>
                 <div class="form-group">
-                    <label for="contract-size">Wielkość kontraktu (w LTC)</label>
+                    <label for="contract-size">WielkoĹ›Ä‡ kontraktu (w LTC)</label>
                     <input type="number" id="contract-size" class="form-control" value="0.01" step="0.0001" min="0.00001">
                     <div style="font-size: 10px; color: #8b949e; margin-top: 5px;">
-                        * Dla LTC często 1 kontrakt = 0.01 LTC
+                        * Dla LTC czÄ™sto 1 kontrakt = 0.01 LTC
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
                 <button class="tool-btn" id="cancel-pos-btn">Anuluj</button>
                 <button class="tool-btn btn-primary" id="save-pos-btn">Zapisz</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="open-position-modal" class="modal-overlay">
+        <div class="modal-box" style="width: 420px;">
+            <div class="modal-header">
+                Otwieranie pozycji
+                <div class="modal-close" id="close-open-position-modal-btn">&times;</div>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="open-pos-side">Kierunek</label>
+                    <select id="open-pos-side" class="form-control">
+                        <option value="long">Long</option>
+                        <option value="short">Short</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="open-pos-contracts">IloĹ›Ä‡ kontraktĂłw</label>
+                    <input type="number" id="open-pos-contracts" class="form-control" value="1" min="0.0001" step="0.0001">
+                </div>
+                <div id="open-pos-feedback" style="font-size: 12px; color: #8b949e; min-height: 18px;"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="tool-btn" id="cancel-open-position-btn">Anuluj</button>
+                <button class="tool-btn" id="close-long-position-btn" title="Test: Flash Close Long">Zamknij Long</button>
+                <button class="tool-btn" id="close-short-position-btn" title="Test: Flash Close Short">Zamknij Short</button>
+                <button class="tool-btn btn-primary" id="submit-open-position-btn">OtwĂłrz</button>
             </div>
         </div>
     </div>
@@ -592,6 +811,7 @@ async def get_dashboard():
         // Modal Elements
         const strategyBtn = document.getElementById('strategy-btn');
         const strategyDropdown = document.getElementById('strategy-dropdown');
+        const botToggleBtn = document.getElementById('bot-toggle-btn');
         const btnOpenSettings = document.getElementById('btn-open-settings');
         const settingsModal = document.getElementById('settings-modal');
         const closeModalBtn = document.getElementById('close-modal-btn');
@@ -605,6 +825,16 @@ async def get_dashboard():
         const savePosBtn = document.getElementById('save-pos-btn');
         const initialQtyInput = document.getElementById('initial-qty');
         const contractSizeInput = document.getElementById('contract-size');
+        const openPositionBtn = document.getElementById('open-position-btn');
+        const openPositionModal = document.getElementById('open-position-modal');
+        const closeOpenPositionModalBtn = document.getElementById('close-open-position-modal-btn');
+        const cancelOpenPositionBtn = document.getElementById('cancel-open-position-btn');
+        const submitOpenPositionBtn = document.getElementById('submit-open-position-btn');
+        const closeLongPositionBtn = document.getElementById('close-long-position-btn');
+        const closeShortPositionBtn = document.getElementById('close-short-position-btn');
+        const openPosSideInput = document.getElementById('open-pos-side');
+        const openPosContractsInput = document.getElementById('open-pos-contracts');
+        const openPosFeedback = document.getElementById('open-pos-feedback');
         
         const analyticsPanel = document.getElementById('analytics-panel');
         const btnOpenAnalytics = document.getElementById('btn-open-analytics');
@@ -633,8 +863,15 @@ async def get_dashboard():
             const factor = weightFactorInput.value;
             const multiplier = multiplierInput.value;
             const minProfit = minProfitInput.value;
+            const l2AvgMultiplier = document.getElementById('l2-avg-multiplier').value;
+            const l2AvgStepMultiplier = document.getElementById('l2-avg-step-multiplier').value;
+            const l2SlEnabled = document.getElementById('l2-sl-enabled').checked ? '1' : '0';
+            const l2SlValue = document.getElementById('l2-sl-value').value;
             const iQty = initialQtyInput.value;
             const cSize = contractSizeInput.value;
+            const execMaxLongQty = document.getElementById('exec-max-long-qty').value;
+            const execMaxShortQty = document.getElementById('exec-max-short-qty').value;
+            const execMaxOrderDelta = document.getElementById('exec-max-order-delta').value;
             
             const mlProb = document.getElementById('mult-long-prob').value;
             const msProb = document.getElementById('mult-short-prob').value;
@@ -653,8 +890,15 @@ async def get_dashboard():
                             "weight_factor": factor,
                             "multiplier": multiplier,
                             "min_profit": minProfit,
+                            "l2_avg_multiplier": l2AvgMultiplier,
+                            "l2_avg_step_multiplier": l2AvgStepMultiplier,
+                            "l2_sl_enabled": l2SlEnabled,
+                            "l2_sl_value": l2SlValue,
                             "initial_qty": iQty,
                             "contract_size": cSize,
+                            "exec_max_long_qty": execMaxLongQty,
+                            "exec_max_short_qty": execMaxShortQty,
+                            "exec_max_order_delta": execMaxOrderDelta,
                             "mult_long_prob": mlProb,
                             "mult_short_prob": msProb,
                             "mult_long_pnl": mlPnl,
@@ -667,7 +911,7 @@ async def get_dashboard():
                 calculateTrend();
                 simulateStrategy();
             } catch (err) {
-                console.error("Błąd zapisu ustawień", err);
+                console.error("BĹ‚Ä…d zapisu ustawieĹ„", err);
             }
         }
 
@@ -681,6 +925,90 @@ async def get_dashboard():
             posSettingsModal.style.display = 'none';
         });
 
+        if (openPositionBtn) {
+            openPositionBtn.addEventListener('click', () => {
+                openPosFeedback.innerText = '';
+                openPositionModal.style.display = 'flex';
+            });
+        }
+        if (closeOpenPositionModalBtn) {
+            closeOpenPositionModalBtn.addEventListener('click', () => {
+                openPositionModal.style.display = 'none';
+            });
+        }
+        if (cancelOpenPositionBtn) {
+            cancelOpenPositionBtn.addEventListener('click', () => {
+                openPositionModal.style.display = 'none';
+            });
+        }
+        if (submitOpenPositionBtn) {
+            submitOpenPositionBtn.addEventListener('click', async () => {
+                const side = (openPosSideInput.value || '').trim();
+                const contracts = Number(openPosContractsInput.value || 0);
+                if (!(contracts > 0)) {
+                    openPosFeedback.innerText = 'NieprawidĹ‚owa iloĹ›Ä‡ kontraktĂłw.';
+                    openPosFeedback.style.color = '#f85149';
+                    return;
+                }
+
+                openPosFeedback.innerText = 'WysyĹ‚anie zlecenia...';
+                openPosFeedback.style.color = '#8b949e';
+                try {
+                    const res = await fetch('/api/execution/open-position', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ side, contracts })
+                    });
+                    const data = await res.json();
+                    if (data.ok && data.executed) {
+                        openPosFeedback.innerText = `WysĹ‚ano: ${side} ${contracts}`;
+                        openPosFeedback.style.color = '#3fb950';
+                    } else {
+                        openPosFeedback.innerText = data.message || 'Nie udaĹ‚o siÄ™ otworzyÄ‡ pozycji.';
+                        openPosFeedback.style.color = '#f85149';
+                    }
+                } catch (err) {
+                    openPosFeedback.innerText = 'BĹ‚Ä…d poĹ‚Ä…czenia z moduĹ‚em execution.';
+                    openPosFeedback.style.color = '#f85149';
+                }
+            });
+        }
+
+        async function closePositionTest(side) {
+            openPosFeedback.innerText = `Zamykanie ${side}...`;
+            openPosFeedback.style.color = '#8b949e';
+            try {
+                const res = await fetch('/api/execution/close-position-flash', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ side })
+                });
+                const data = await res.json();
+                if (data.ok && data.executed) {
+                    openPosFeedback.innerText = `Zamkni?to ${side} (Flash Close).`;
+                    openPosFeedback.style.color = '#3fb950';
+                } else {
+                    openPosFeedback.innerText = data.message || `Nie uda?o si? zamkn?? ${side}.`;
+                    openPosFeedback.style.color = '#f85149';
+                }
+            } catch (err) {
+                openPosFeedback.innerText = 'B??d po??czenia z modu?em execution.';
+                openPosFeedback.style.color = '#f85149';
+            }
+        }
+
+        if (closeLongPositionBtn) {
+            closeLongPositionBtn.addEventListener('click', async () => {
+                await closePositionTest('long');
+            });
+        }
+
+        if (closeShortPositionBtn) {
+            closeShortPositionBtn.addEventListener('click', async () => {
+                await closePositionTest('short');
+            });
+        }
+
         document.addEventListener('click', (e) => {
             if (strategyDropdown.classList.contains('show')) {
                 strategyDropdown.classList.remove('show');
@@ -690,7 +1018,7 @@ async def get_dashboard():
         btnToggleStrat1.addEventListener('click', () => {
             strategy1Visible = !strategy1Visible;
             btnToggleStrat1.classList.toggle('active', strategy1Visible);
-            btnToggleStrat1.innerText = strategy1Visible ? '👁️ Strat 1' : '❌ Strat 1';
+            btnToggleStrat1.innerText = strategy1Visible ? 'đź‘ď¸Ź Strat 1' : 'âťŚ Strat 1';
             
             const visibility = strategy1Visible;
             // renkoSeries remains visible as requested
@@ -712,7 +1040,7 @@ async def get_dashboard():
             btnToggleStrat2.addEventListener('click', () => {
                 strategy2Visible = !strategy2Visible;
                 btnToggleStrat2.classList.toggle('active', strategy2Visible);
-                btnToggleStrat2.innerText = strategy2Visible ? '👁️ Strat 2' : '❌ Strat 2';
+                btnToggleStrat2.innerText = strategy2Visible ? 'đź‘ď¸Ź Strat 2' : 'âťŚ Strat 2';
                 
                 const visibility = strategy2Visible;
                 histL2LongAvgSeries.applyOptions({ visible: visibility });
@@ -743,8 +1071,18 @@ async def get_dashboard():
                 if (data["weight_factor"]) weightFactorInput.value = data["weight_factor"];
                 if (data["multiplier"]) multiplierInput.value = data["multiplier"];
                 if (data["min_profit"]) minProfitInput.value = data["min_profit"];
+                if (data["l2_avg_multiplier"]) document.getElementById('l2-avg-multiplier').value = data["l2_avg_multiplier"];
+                if (data["l2_avg_step_multiplier"]) document.getElementById('l2-avg-step-multiplier').value = data["l2_avg_step_multiplier"];
+                if (data["l2_sl_enabled"] !== undefined) {
+                    const raw = String(data["l2_sl_enabled"]).toLowerCase();
+                    document.getElementById('l2-sl-enabled').checked = (raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on');
+                }
+                if (data["l2_sl_value"]) document.getElementById('l2-sl-value').value = data["l2_sl_value"];
                 if (data["initial_qty"]) initialQtyInput.value = data["initial_qty"];
                 if (data["contract_size"]) contractSizeInput.value = data["contract_size"];
+                if (data["exec_max_long_qty"]) document.getElementById('exec-max-long-qty').value = data["exec_max_long_qty"];
+                if (data["exec_max_short_qty"]) document.getElementById('exec-max-short-qty').value = data["exec_max_short_qty"];
+                if (data["exec_max_order_delta"]) document.getElementById('exec-max-order-delta').value = data["exec_max_order_delta"];
                 
                 if (data["mult_long_prob"]) document.getElementById('mult-long-prob').value = data["mult_long_prob"];
                 if (data["mult_short_prob"]) document.getElementById('mult-short-prob').value = data["mult_short_prob"];
@@ -756,7 +1094,7 @@ async def get_dashboard():
                 calculateTrend();
                 simulateStrategy();
             } catch (err) {
-                console.error("Nie udało się pobrać ustawień:", err);
+                console.error("Nie udaĹ‚o siÄ™ pobraÄ‡ ustawieĹ„:", err);
             }
         }
 
@@ -868,10 +1206,97 @@ async def get_dashboard():
                 };
             };
 
-            const renderSection = (key, probs, stats) => {
-                const barsContainer = document.getElementById(`analytics-bars-container-${key}`);
+            const buildEquityCurveFromSignals = (signals) => {
+                let equity = 0;
+                const out = [];
+                (signals || []).forEach(s => {
+                    const sig = s.signal;
+                    if (sig !== 'close_long' && sig !== 'close_short') return;
+                    const pnlVal = Number(s.pnl);
+                    if (Number.isNaN(pnlVal)) return;
+                    equity += pnlVal;
+                    out.push({
+                        time: Number(s.time || 0),
+                        pnl: pnlVal,
+                        equity: Number(equity.toFixed(4))
+                    });
+                });
+                return out;
+            };
+
+            const renderEquityChart = (svgEl, metaEl, points) => {
+                if (!svgEl || !metaEl) return;
+                if (!points || points.length === 0) {
+                    svgEl.innerHTML = `<text x="8" y="40" fill="#8b949e" font-size="10">Brak zamkniÄ™tych pozycji</text>`;
+                    metaEl.innerText = `KapitaĹ‚: 0.00`;
+                    return;
+                }
+
+                const width = 620;
+                const height = 70;
+                const padX = 6;
+                const padY = 6;
+
+                const tMin = Math.min(...points.map(p => p.time || 0));
+                const tMax = Math.max(...points.map(p => p.time || 0));
+                const spanT = Math.max(1, tMax - tMin);
+
+                const eMin = Math.min(...points.map(p => p.equity), 0);
+                const eMax = Math.max(...points.map(p => p.equity), 0);
+                const spanE = Math.max(1e-9, eMax - eMin);
+
+                const xOf = (t) => padX + ((t - tMin) / spanT) * (width - 2 * padX);
+                const yOf = (e) => padY + ((eMax - e) / spanE) * (height - 2 * padY);
+
+                const poly = points.map(p => `${xOf(p.time).toFixed(2)},${yOf(p.equity).toFixed(2)}`).join(' ');
+                const zeroInRange = eMin <= 0 && eMax >= 0;
+                const zeroY = yOf(0);
+                const last = points[points.length - 1];
+                const lineColor = last.equity >= 0 ? '#3fb950' : '#f85149';
+
+                svgEl.setAttribute('viewBox', `0 0 ${width} ${height}`);
+                svgEl.innerHTML = `
+                    <rect x="0" y="0" width="${width}" height="${height}" fill="transparent"></rect>
+                    ${zeroInRange ? `<line x1="${padX}" y1="${zeroY.toFixed(2)}" x2="${width - padX}" y2="${zeroY.toFixed(2)}" stroke="#6e7681" stroke-width="1" stroke-dasharray="3 3" opacity="0.6"></line>` : ''}
+                    <polyline points="${poly}" fill="none" stroke="${lineColor}" stroke-width="2"></polyline>
+                    <circle cx="${xOf(last.time).toFixed(2)}" cy="${yOf(last.equity).toFixed(2)}" r="2.5" fill="${lineColor}"></circle>
+                `;
+                metaEl.innerText = `KapitaĹ‚ koĹ„cowy: ${last.equity.toFixed(2)} | ZamkniÄ™cia: ${points.length}`;
+            };
+
+            const ensureAnalyticsLayout = (key) => {
+                const body = document.getElementById(`analytics-bars-container-${key}`);
+                if (!body) return null;
+                let barsRow = document.getElementById(`analytics-bars-row-${key}`);
+                if (!barsRow) {
+                    body.innerHTML = '';
+                    barsRow = document.createElement('div');
+                    barsRow.id = `analytics-bars-row-${key}`;
+                    barsRow.className = 'analytics-bars-row';
+
+                    const equityCard = document.createElement('div');
+                    equityCard.className = 'analytics-equity-card';
+                    equityCard.innerHTML = `
+                        <div class="analytics-equity-title">Poziom portfela w czasie</div>
+                        <svg id="analytics-equity-svg-${key}" class="analytics-equity-svg"></svg>
+                        <div id="analytics-equity-meta-${key}" class="analytics-equity-meta"></div>
+                    `;
+
+                    body.appendChild(barsRow);
+                    body.appendChild(equityCard);
+                }
+                return {
+                    barsRow,
+                    equitySvg: document.getElementById(`analytics-equity-svg-${key}`),
+                    equityMeta: document.getElementById(`analytics-equity-meta-${key}`)
+                };
+            };
+
+            const renderSection = (key, probs, stats, equityPoints) => {
+                const layout = ensureAnalyticsLayout(key);
                 const analyticsTotalCount = document.getElementById(`analytics-total-count-${key}`);
-                if (!barsContainer) return;
+                if (!layout) return;
+                const barsContainer = layout.barsRow;
 
                 const setStat = (id, val, colorize = true) => {
                     const el = document.getElementById(id);
@@ -886,6 +1311,7 @@ async def get_dashboard():
                 setStat(`stats-avg-pnl-${key}`, stats.avg_pnl);
                 setStat(`stats-max-pnl-${key}`, stats.max_pnl);
                 setStat(`stats-min-pnl-${key}`, stats.min_pnl);
+                setStat(`stats-max-underwater-pnl-${key}`, stats.max_underwater_pnl || 0);
                 const profitableEl = document.getElementById(`stats-profitable-closes-${key}`);
                 const losingEl = document.getElementById(`stats-losing-closes-${key}`);
                 if (profitableEl) profitableEl.innerText = String(stats.profitable_closes || 0);
@@ -914,19 +1340,28 @@ async def get_dashboard():
                     `;
                     barsContainer.innerHTML += barHtml;
                 }
+
+                renderEquityChart(layout.equitySvg, layout.equityMeta, equityPoints || []);
             };
 
             const l1Computed = buildAnalyticsFromSignals(data.signals || []);
             const l1Probs = data.probabilities || {};
             const l1Stats = {
                 ...(data.analytics_stats || {}),
+                max_underwater_pnl: Number(data.max_underwater_pnl || 0),
                 profitable_closes: l1Computed.analytics_stats.profitable_closes,
                 losing_closes: l1Computed.analytics_stats.losing_closes
             };
-            renderSection('l1', l1Probs, l1Stats);
+            const l1Equity = buildEquityCurveFromSignals(data.signals || []);
+            renderSection('l1', l1Probs, l1Stats, l1Equity);
 
             const l2Computed = buildAnalyticsFromSignals(data.l2_signals || []);
-            renderSection('l2', l2Computed.probabilities, l2Computed.analytics_stats);
+            const l2Stats = {
+                ...(l2Computed.analytics_stats || {}),
+                max_underwater_pnl: Number(data.l2_max_underwater_pnl || 0)
+            };
+            const l2Equity = buildEquityCurveFromSignals(data.l2_signals || []);
+            renderSection('l2', l2Computed.probabilities, l2Stats, l2Equity);
         }
 
         btnOpenAnalytics.addEventListener('click', () => {
@@ -940,24 +1375,24 @@ async def get_dashboard():
             const lCard = document.getElementById('long-pos-card');
             const sCard = document.getElementById('short-pos-card');
 
-            if (data.current_long_active) {
+            if (data.l2_current_long_active) {
                 lCard.classList.add('active');
-                document.getElementById('l-hud-count').innerText = data.long_count;
-                document.getElementById('l-hud-qty').innerText = data.long_qty;
+                document.getElementById('l-hud-count').innerText = data.l2_long_count;
+                document.getElementById('l-hud-qty').innerText = data.l2_long_qty;
                 const pnlEl = document.getElementById('l-hud-pnl');
-                pnlEl.innerText = `$${data.long_pnl} (${data.long_pnl_pct}%)`;
-                pnlEl.className = 'pos-pnl ' + (data.long_pnl >= 0 ? 'pnl-plus' : 'pnl-minus');
+                pnlEl.innerText = `$${Number(data.l2_long_pnl || 0).toFixed(4)} (${Number(data.l2_long_pnl_pct || 0).toFixed(4)}%)`;
+                pnlEl.className = 'pos-pnl ' + (data.l2_long_pnl >= 0 ? 'pnl-plus' : 'pnl-minus');
             } else {
                 lCard.classList.remove('active');
             }
 
-            if (data.current_short_active) {
+            if (data.l2_current_short_active) {
                 sCard.classList.add('active');
-                document.getElementById('s-hud-count').innerText = data.short_count;
-                document.getElementById('s-hud-qty').innerText = data.short_qty;
+                document.getElementById('s-hud-count').innerText = data.l2_short_count;
+                document.getElementById('s-hud-qty').innerText = data.l2_short_qty;
                 const pnlEl = document.getElementById('s-hud-pnl');
-                pnlEl.innerText = `$${data.short_pnl} (${data.short_pnl_pct}%)`;
-                pnlEl.className = 'pos-pnl ' + (data.short_pnl >= 0 ? 'pnl-plus' : 'pnl-minus');
+                pnlEl.innerText = `$${Number(data.l2_short_pnl || 0).toFixed(4)} (${Number(data.l2_short_pnl_pct || 0).toFixed(4)}%)`;
+                pnlEl.className = 'pos-pnl ' + (data.l2_short_pnl >= 0 ? 'pnl-plus' : 'pnl-minus');
             } else {
                 sCard.classList.remove('active');
             }
@@ -989,6 +1424,102 @@ async def get_dashboard():
             const resShortEl = document.getElementById('trigger-result-short');
             if (resLongEl) resLongEl.innerText = (data.trigger_res_long || 0).toFixed(2) + '%';
             if (resShortEl) resShortEl.innerText = (data.trigger_res_short || 0).toFixed(2) + '%';
+        }
+
+        function updateExchangePositionPanel(payload) {
+            const snap = payload && payload.positions_snapshot ? payload.positions_snapshot : null;
+            const l2 = payload && payload.dashboard_l2_snapshot ? payload.dashboard_l2_snapshot : null;
+            const longPos = snap && snap.positions ? snap.positions.long : null;
+            const shortPos = snap && snap.positions ? snap.positions.short : null;
+
+            const setText = (id, value) => {
+                const el = document.getElementById(id);
+                if (el) el.innerText = value;
+            };
+
+            const fmtNum4 = (v, suffix = '') => {
+                if (v === null || v === undefined || v === '') return '-';
+                const n = Number(v);
+                if (Number.isNaN(n)) return '-';
+                return `${n.toFixed(4)}${suffix}`;
+            };
+
+            setText('ex-long-size', fmtNum4(longPos ? longPos.size : null));
+            setText('ex-long-target', fmtNum4(l2 ? l2.long_qty : null));
+            setText('ex-long-avg', fmtNum4(longPos ? longPos.avg_price : null));
+            setText('ex-long-upnl', fmtNum4(longPos ? longPos.unrealized_pnl : null));
+            setText('ex-long-upnl-pct', fmtNum4(longPos ? longPos.unrealized_pnl_pct : null, '%'));
+
+            setText('ex-short-size', fmtNum4(shortPos ? shortPos.size : null));
+            setText('ex-short-target', fmtNum4(l2 ? l2.short_qty : null));
+            setText('ex-short-avg', fmtNum4(shortPos ? shortPos.avg_price : null));
+            setText('ex-short-upnl', fmtNum4(shortPos ? shortPos.unrealized_pnl : null));
+            setText('ex-short-upnl-pct', fmtNum4(shortPos ? shortPos.unrealized_pnl_pct : null, '%'));
+
+            const pair = snap ? (snap.pair_detected || '-') : '-';
+            const ok = snap ? !!snap.is_expected_pair : false;
+            const statusEl = document.getElementById('ex-pair-status');
+            if (statusEl) {
+                statusEl.innerText = `Pair: ${pair}`;
+                statusEl.style.color = ok ? '#3fb950' : '#f85149';
+            }
+
+            const botEnabled = !!(payload && payload.bot_enabled);
+            const safetyBlocked = !!(payload && payload.safety_blocked);
+            const safetyReason = payload && payload.safety_reason ? payload.safety_reason : null;
+            const botEl = document.getElementById('ex-bot-status');
+            if (botEl) {
+                if (safetyBlocked) {
+                    botEl.innerText = `BOT: OFF (SAFETY: ${safetyReason || 'unknown'})`;
+                    botEl.style.color = '#f85149';
+                } else {
+                    botEl.innerText = `BOT: ${botEnabled ? 'ON' : 'OFF'}`;
+                    botEl.style.color = botEnabled ? '#3fb950' : '#f85149';
+                }
+            }
+            if (botToggleBtn) {
+                botToggleBtn.classList.toggle('active', botEnabled && !safetyBlocked);
+                botToggleBtn.innerText = botEnabled && !safetyBlocked ? 'BOT ON' : 'BOT OFF';
+            }
+
+            const timing = snap && snap.read_method_timing_ms ? snap.read_method_timing_ms : null;
+            setText('ex-read-timing-m1', `M1 read: ${timing && timing.m1 !== undefined ? Number(timing.m1).toFixed(1) : '-'} ms`);
+            setText('ex-read-timing-m2', `M2 read: ${timing && timing.m2 !== undefined ? Number(timing.m2).toFixed(1) : '-'} ms`);
+            setText('ex-read-timing-m3', `M3 read: ${timing && timing.m3 !== undefined ? Number(timing.m3).toFixed(1) : '-'} ms`);
+
+            const consensusOk = !!(snap && snap.read_consensus_ok);
+            const consensusText = document.getElementById('ex-consensus-text');
+            const consensusDot = document.getElementById('ex-consensus-dot');
+            if (consensusText) {
+                consensusText.innerText = `Consensus: ${consensusOk ? 'OK' : 'FAIL'}`;
+                consensusText.style.color = consensusOk ? '#3fb950' : '#f85149';
+            }
+            if (consensusDot) {
+                consensusDot.classList.toggle('ok', consensusOk);
+                consensusDot.classList.remove('pulse');
+                // reflow for animation restart
+                void consensusDot.offsetWidth;
+                if (consensusOk) {
+                    consensusDot.classList.add('pulse');
+                }
+            }
+        }
+
+        async function toggleExecutionBot() {
+            if (!botToggleBtn) return;
+            try {
+                const current = botToggleBtn.classList.contains('active');
+                const res = await fetch('/api/execution/bot-control', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: !current })
+                });
+                const data = await res.json();
+                if (data && data.ok) {
+                    botToggleBtn.classList.toggle('active', !!data.enabled);
+                    botToggleBtn.innerText = data.enabled ? 'BOT ON' : 'BOT OFF';
+                }
+            } catch (e) {}
         }
 
         async function simulateStrategy() {
@@ -1316,6 +1847,11 @@ async def get_dashboard():
         }
 
         async function startLiveUpdates() {
+            if (botToggleBtn) {
+                botToggleBtn.addEventListener('click', async () => {
+                    await toggleExecutionBot();
+                });
+            }
             // 1. Polling Status Tag
             setInterval(async () => {
                 try {
@@ -1325,6 +1861,15 @@ async def get_dashboard():
                     statusTag.style.color = data.status === "Live" ? "#26a69a" : "#e3b341";
                 } catch (e) {}
             }, 3000);
+
+            // 1b. Polling Exchange Position Snapshot
+            setInterval(async () => {
+                try {
+                    const res = await fetch('/api/execution/positions');
+                    const data = await res.json();
+                    updateExchangePositionPanel(data);
+                } catch (e) {}
+            }, 2000);
 
             // 2. Polling Latest Data
             setInterval(async () => {
@@ -1365,3 +1910,4 @@ async def get_dashboard():
 </body>
 </html>
     """
+
